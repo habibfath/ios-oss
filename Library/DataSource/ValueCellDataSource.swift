@@ -113,6 +113,30 @@ open class ValueCellDataSource: NSObject, UICollectionViewDataSource, UITableVie
   }
 
   /**
+   Inserts a single value at the index and section specified.
+
+   - parameter value:     A value to append.
+   - parameter cellClass: The type of cell associated with the value.
+   - parameter index:     The index to insert the value into
+   - parameter section:   The section to insert the value into
+
+   - returns: The index path of the inserted row.
+   */
+
+  @discardableResult
+  public final func insertRow<Cell: ValueCell, Value: Any>(value: Value,
+                                                           cellClass: Cell.Type,
+                                                           atIndex index: Int,
+                                                           inSection section: Int) -> IndexPath
+    where Cell.Value == Value {
+      self.padValuesForSection(section)
+
+      self.values[section].insert((value, Cell.defaultReusableId), at: index)
+
+      return IndexPath(row: index, section: section)
+  }
+
+  /**
    Adds a single row to the end of a section without specifying a value. This can be useful for
    providing static rows.
 
@@ -281,7 +305,7 @@ open class ValueCellDataSource: NSObject, UICollectionViewDataSource, UITableVie
    - parameter item:    An item index.
    - parameter section: A section index.
 
-   - returns: The resuableId associated with an (item, section) pair. Marked as internal as it's
+   - returns: The reusableId associated with an (item, section) pair. Marked as internal as it's
               only useful for testing.
    */
   internal final func reusableId(item: Int, section: Int) -> String? {

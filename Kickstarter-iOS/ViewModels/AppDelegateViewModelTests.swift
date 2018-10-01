@@ -16,7 +16,9 @@ final class AppDelegateViewModelTests: TestCase {
   let vm: AppDelegateViewModelType = AppDelegateViewModel()
 
   fileprivate let authorizeForRemoteNotifications = TestObserver<(), NoError>()
+  fileprivate let configureFabric = TestObserver<(), NoError>()
   fileprivate let configureHockey = TestObserver<HockeyConfigData, NoError>()
+  fileprivate let didAcceptReceivingRemoteNotifications = TestObserver<(), NoError>()
   private let findRedirectUrl = TestObserver<URL, NoError>()
   fileprivate let forceLogout = TestObserver<(), NoError>()
   fileprivate let getNotificationAuthorizationStatus = TestObserver<(), NoError>()
@@ -37,6 +39,7 @@ final class AppDelegateViewModelTests: TestCase {
   fileprivate let pushTokenSuccessfullyRegistered = TestObserver<(), NoError>()
   fileprivate let registerForRemoteNotifications = TestObserver<(), NoError>()
   fileprivate let setApplicationShortcutItems = TestObserver<[ShortcutItem], NoError>()
+  fileprivate let showAlert = TestObserver<Notification, NoError>()
   fileprivate let unregisterForRemoteNotifications = TestObserver<(), NoError>()
   fileprivate let updateCurrentUserInEnvironment = TestObserver<User, NoError>()
   fileprivate let updateConfigInEnvironment = TestObserver<Config, NoError>()
@@ -45,6 +48,7 @@ final class AppDelegateViewModelTests: TestCase {
     super.setUp()
 
     self.vm.outputs.authorizeForRemoteNotifications.observe(self.authorizeForRemoteNotifications.observer)
+    self.vm.outputs.configureFabric.observe(self.configureFabric.observer)
     self.vm.outputs.configureHockey.observe(self.configureHockey.observer)
     self.vm.outputs.findRedirectUrl.observe(self.findRedirectUrl.observer)
     self.vm.outputs.forceLogout.observe(self.forceLogout.observer)
@@ -68,9 +72,66 @@ final class AppDelegateViewModelTests: TestCase {
     self.vm.outputs.pushTokenSuccessfullyRegistered.observe(self.pushTokenSuccessfullyRegistered.observer)
     self.vm.outputs.registerForRemoteNotifications.observe(self.registerForRemoteNotifications.observer)
     self.vm.outputs.setApplicationShortcutItems.observe(self.setApplicationShortcutItems.observer)
+    self.vm.outputs.showAlert.observe(self.showAlert.observer)
     self.vm.outputs.unregisterForRemoteNotifications.observe(self.unregisterForRemoteNotifications.observer)
     self.vm.outputs.updateCurrentUserInEnvironment.observe(self.updateCurrentUserInEnvironment.observer)
     self.vm.outputs.updateConfigInEnvironment.observe(self.updateConfigInEnvironment.observer)
+  }
+
+  func testConfigureFabric() {
+    self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
+
+    self.configureFabric.assertValueCount(1)
+  }
+
+  func testConfigureHockey_AlphaApp_LoggedOut() {
+    let alphaBundle = MockBundle(bundleIdentifier: KickstarterBundleIdentifier.alpha.rawValue, lang: "en")
+
+    withEnvironment(mainBundle: alphaBundle) {
+      vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared,
+                                              launchOptions: [:])
+
+      self.configureHockey.assertValues([
+        HockeyConfigData(
+          appIdentifier: KsApi.Secrets.HockeyAppId.alpha,
+          disableUpdates: false,
+          userId: "0",
+          userName: "anonymous"
+        )
+        ])
+    }
+  }
+
+  func testConfigureHockey_AlphaApp_LoggedIn() {
+    let alphaBundle = MockBundle(bundleIdentifier: KickstarterBundleIdentifier.alpha.rawValue, lang: "en")
+    let currentUser = User.template
+
+    withEnvironment(
+      currentUser: .template,
+      mainBundle: alphaBundle) {
+      vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared,
+                                              launchOptions: [:])
+
+      self.configureHockey.assertValues([
+        HockeyConfigData(
+          appIdentifier: KsApi.Secrets.HockeyAppId.alpha,
+          disableUpdates: false,
+          userId: String(currentUser.id),
+          userName: currentUser.name
+        )
+        ])
+    }
+  }
+
+  func testConfigureHockey_DebugApp() {
+    let debugBundle = MockBundle(bundleIdentifier: KickstarterBundleIdentifier.debug.rawValue, lang: "en")
+
+    withEnvironment(mainBundle: debugBundle) {
+      vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared,
+                                              launchOptions: [:])
+
+      self.configureHockey.assertDidNotEmitValue()
+    }
   }
 
   func testConfigureHockey_BetaApp_LoggedOut() {
@@ -578,6 +639,9 @@ final class AppDelegateViewModelTests: TestCase {
     withEnvironment(currentUser: .template) {
       self.vm.inputs.userSessionStarted()
 
+      let notification = Notification.init(name: Notification.Name(rawValue: "deadbeef"))
+
+      self.vm.inputs.showNotificationDialog(notification: notification)
       self.getNotificationAuthorizationStatus.assertValueCount(1)
       self.authorizeForRemoteNotifications.assertValueCount(0)
       self.registerForRemoteNotifications.assertValueCount(0)
@@ -607,6 +671,7 @@ final class AppDelegateViewModelTests: TestCase {
 
       //Simulate initial notification authorization
       self.vm.inputs.notificationAuthorizationStatusReceived(UNAuthorizationStatus.notDetermined)
+      self.vm.inputs.didAcceptReceivingRemoteNotifications()
 
       self.getNotificationAuthorizationStatus.assertValueCount(2)
       self.authorizeForRemoteNotifications.assertValueCount(1)
@@ -734,7 +799,7 @@ final class AppDelegateViewModelTests: TestCase {
   func testOpenPushNotification_LaunchApp() {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
-      launchOptions: [UIApplicationLaunchOptionsKey.remoteNotification: friendBackingPushData]
+      launchOptions: [UIApplication.LaunchOptionsKey.remoteNotification: friendBackingPushData]
     )
 
     self.presentViewController.assertValueCount(1)
@@ -771,7 +836,7 @@ final class AppDelegateViewModelTests: TestCase {
 
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
-      launchOptions: [UIApplicationLaunchOptionsKey.remoteNotification: backingForCreatorPushData]
+      launchOptions: [UIApplication.LaunchOptionsKey.remoteNotification: backingForCreatorPushData]
     )
 
     self.goToProjectActivities.assertValues([param])
@@ -785,7 +850,7 @@ final class AppDelegateViewModelTests: TestCase {
 
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
-      launchOptions: [UIApplicationLaunchOptionsKey.remoteNotification: badPushData]
+      launchOptions: [UIApplication.LaunchOptionsKey.remoteNotification: badPushData]
     )
 
     self.goToDashboard.assertValueCount(0)
@@ -794,7 +859,7 @@ final class AppDelegateViewModelTests: TestCase {
   func testOpenNotification_ProjectUpdate() {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
-      launchOptions: [UIApplicationLaunchOptionsKey.remoteNotification: updatePushData]
+      launchOptions: [UIApplication.LaunchOptionsKey.remoteNotification: updatePushData]
     )
 
     self.presentViewController.assertValueCount(1)
@@ -806,7 +871,7 @@ final class AppDelegateViewModelTests: TestCase {
 
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
-      launchOptions: [UIApplicationLaunchOptionsKey.remoteNotification: badPushData]
+      launchOptions: [UIApplication.LaunchOptionsKey.remoteNotification: badPushData]
     )
 
     self.presentViewController.assertValueCount(0)
@@ -815,7 +880,7 @@ final class AppDelegateViewModelTests: TestCase {
   func testOpenNotification_SurveyResponse() {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
-      launchOptions: [UIApplicationLaunchOptionsKey.remoteNotification: surveyResponsePushData]
+      launchOptions: [UIApplication.LaunchOptionsKey.remoteNotification: surveyResponsePushData]
     )
 
     self.presentViewController.assertValueCount(1)
@@ -827,7 +892,7 @@ final class AppDelegateViewModelTests: TestCase {
 
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
-      launchOptions: [UIApplicationLaunchOptionsKey.remoteNotification: badPushData]
+      launchOptions: [UIApplication.LaunchOptionsKey.remoteNotification: badPushData]
     )
 
     self.presentViewController.assertValueCount(0)
@@ -836,7 +901,7 @@ final class AppDelegateViewModelTests: TestCase {
   func testOpenNotification_UpdateComment() {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
-      launchOptions: [UIApplicationLaunchOptionsKey.remoteNotification: updateCommentPushData]
+      launchOptions: [UIApplication.LaunchOptionsKey.remoteNotification: updateCommentPushData]
     )
 
     self.presentViewController.assertValueCount(1)
@@ -848,7 +913,7 @@ final class AppDelegateViewModelTests: TestCase {
 
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
-      launchOptions: [UIApplicationLaunchOptionsKey.remoteNotification: badPushData]
+      launchOptions: [UIApplication.LaunchOptionsKey.remoteNotification: badPushData]
     )
 
     self.presentViewController.assertValueCount(0)
@@ -857,7 +922,7 @@ final class AppDelegateViewModelTests: TestCase {
   func testOpenNotification_ProjectComment() {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
-      launchOptions: [UIApplicationLaunchOptionsKey.remoteNotification: projectCommentPushData]
+      launchOptions: [UIApplication.LaunchOptionsKey.remoteNotification: projectCommentPushData]
     )
 
     self.presentViewController.assertValueCount(1)
@@ -869,7 +934,7 @@ final class AppDelegateViewModelTests: TestCase {
 
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
-      launchOptions: [UIApplicationLaunchOptionsKey.remoteNotification: badPushData]
+      launchOptions: [UIApplication.LaunchOptionsKey.remoteNotification: badPushData]
     )
 
     self.presentViewController.assertValueCount(0)
@@ -878,7 +943,7 @@ final class AppDelegateViewModelTests: TestCase {
   func testOpenNotification_GenericProject() {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
-      launchOptions: [UIApplicationLaunchOptionsKey.remoteNotification: genericProjectPushData]
+      launchOptions: [UIApplication.LaunchOptionsKey.remoteNotification: genericProjectPushData]
     )
 
     self.presentViewController.assertValueCount(1)
@@ -994,7 +1059,7 @@ final class AppDelegateViewModelTests: TestCase {
 
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
-      launchOptions: [UIApplicationLaunchOptionsKey.localNotification: localNotification]
+      launchOptions: [UIApplication.LaunchOptionsKey.localNotification: localNotification]
     )
 
     self.presentViewController.assertValueCount(1)
@@ -1110,7 +1175,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [
-        UIApplicationLaunchOptionsKey.shortcutItem: ShortcutItem.creatorDashboard.applicationShortcutItem
+        UIApplication.LaunchOptionsKey.shortcutItem: ShortcutItem.creatorDashboard.applicationShortcutItem
       ]
     )
 
@@ -1138,7 +1203,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [
-        UIApplicationLaunchOptionsKey.shortcutItem: ShortcutItem.projectsWeLove.applicationShortcutItem
+        UIApplication.LaunchOptionsKey.shortcutItem: ShortcutItem.projectsWeLove.applicationShortcutItem
       ]
     )
 
@@ -1169,7 +1234,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [
-        UIApplicationLaunchOptionsKey.shortcutItem: ShortcutItem.recommendedForYou.applicationShortcutItem
+        UIApplication.LaunchOptionsKey.shortcutItem: ShortcutItem.recommendedForYou.applicationShortcutItem
       ]
     )
 
@@ -1195,7 +1260,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [
-        UIApplicationLaunchOptionsKey.shortcutItem: ShortcutItem.search.applicationShortcutItem
+        UIApplication.LaunchOptionsKey.shortcutItem: ShortcutItem.search.applicationShortcutItem
       ]
     )
 
@@ -1252,7 +1317,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
       launchOptions: [
-        UIApplicationLaunchOptionsKey.shortcutItem: ShortcutItem.projectsWeLove.applicationShortcutItem
+        UIApplication.LaunchOptionsKey.shortcutItem: ShortcutItem.projectsWeLove.applicationShortcutItem
       ]
     )
 
@@ -1435,6 +1500,50 @@ final class AppDelegateViewModelTests: TestCase {
     XCTAssertFalse(result)
 
     self.presentViewController.assertValues([1])
+  }
+
+  @available(iOS 10.0, *)
+  func testShowAlertEmitsIf_CanShowDialog() {
+
+    let notification = Notification(name: Notification.Name(rawValue: "deadbeef"),
+                                    userInfo: ["context": PushNotificationDialog.Context.login])
+
+    userDefaults.set(["message"], forKey: "com.kickstarter.KeyValueStoreType.deniedNotificationContexts")
+
+    withEnvironment(currentUser: .template, userDefaults: userDefaults) {
+
+      self.vm.inputs.applicationWillEnterForeground()
+      self.vm.inputs.applicationDidFinishLaunching(
+        application: UIApplication.shared,
+        launchOptions: [UIApplication.LaunchOptionsKey.remoteNotification: updatePushData]
+      )
+      self.vm.inputs.showNotificationDialog(notification: notification)
+      self.vm.inputs.notificationAuthorizationStatusReceived(.notDetermined)
+
+      self.showAlert.assertValue(notification)
+    }
+  }
+
+  @available(iOS 10.0, *)
+  func testShowAlertDoesNotEmitIf_CanNotShowDialog() {
+
+    let notification = Notification(name: Notification.Name(rawValue: "deadbeef"),
+                                    userInfo: ["context": PushNotificationDialog.Context.login])
+
+    userDefaults.set(["login"], forKey: "com.kickstarter.KeyValueStoreType.deniedNotificationContexts")
+
+    withEnvironment(currentUser: .template, userDefaults: userDefaults) {
+
+      self.vm.inputs.applicationWillEnterForeground()
+      self.vm.inputs.applicationDidFinishLaunching(
+        application: UIApplication.shared,
+        launchOptions: [UIApplication.LaunchOptionsKey.remoteNotification: updatePushData]
+      )
+      self.vm.inputs.showNotificationDialog(notification: notification)
+      self.vm.inputs.notificationAuthorizationStatusReceived(.notDetermined)
+
+      self.showAlert.assertDidNotEmitValue()
+    }
   }
 }
 

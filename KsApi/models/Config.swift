@@ -2,6 +2,19 @@ import Argo
 import Curry
 import Runes
 
+public enum Experiment {
+
+  public enum Name: String {
+    case creatorsNameDiscovery = "show_created_by_discovery"
+    case showProjectCardCategory = "native_show_project_card_category"
+  }
+
+  public enum Variant: String {
+    case control //default
+    case experimental
+  }
+}
+
 public struct Config {
   public private(set) var abExperiments: [String: String]
   public private(set) var appId: Int
@@ -12,13 +25,19 @@ public struct Config {
   public private(set) var launchedCountries: [Project.Country]
   public private(set) var locale: String
   public private(set) var stripePublishableKey: String
+
+  public var abExperimentsArray: [String] {
+    let stringsArray = self.abExperiments.map { (key, value) in
+      key + "[\(value)]"
+    }
+    return stringsArray
+  }
 }
 
 extension Config: Argo.Decodable {
   public static func decode(_ json: JSON) -> Decoded<Config> {
-    let create = curry(Config.init)
-    let tmp = create
-      <^> decodeDictionary(json <| "ab_experiments")
+    let tmp = curry(Config.init)
+      <^> (decodeDictionary(json <| "ab_experiments"))
       <*> json <| "app_id"
       <*> json <|| "apple_pay_countries"
       <*> json <| "country_code"
@@ -65,7 +84,7 @@ extension Config: EncodableType {
 // Turns out using `>>-` or `flatMap` on a `Decoded` fails to compile with optimizations on, so this
 // function does it manually.
 private func decodeDictionary<T: Argo.Decodable>(_ j: Decoded<JSON>)
-  -> Decoded<[String:T]> where T.DecodedType == T {
+  -> Decoded<[String: T]> where T.DecodedType == T {
   switch j {
   case let .success(json): return [String: T].decode(json)
   case let .failure(e): return .failure(e)

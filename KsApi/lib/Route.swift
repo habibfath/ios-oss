@@ -8,6 +8,7 @@ internal enum Route {
   case addImage(fileUrl: URL, toDraft: UpdateDraft)
   case addVideo(fileUrl: URL, toDraft: UpdateDraft)
   case backing(projectId: Int, backerId: Int)
+  case backingUpdate(projectId: Int, backerId: Int, received: Bool)
   case categories
   case category(Param)
   case changePaymentMethod(project: Project)
@@ -18,6 +19,8 @@ internal enum Route {
   case deleteImage(UpdateDraft.Image, fromDraft: UpdateDraft)
   case deleteVideo(UpdateDraft.Video, fromDraft: UpdateDraft)
   case discover(DiscoveryParams)
+  case exportData
+  case exportDataState
   case facebookConnect(facebookAccessToken: String)
   case facebookLogin(facebookAccessToken: String, code: String?)
   case facebookSignup(facebookAccessToken: String, sendNewsletters: Bool)
@@ -90,6 +93,10 @@ internal enum Route {
     case let .backing(projectId, backerId):
       return (.GET, "/v1/projects/\(projectId)/backers/\(backerId)", [:], nil)
 
+    case let .backingUpdate(projectId, backerId, received):
+      return (.PUT, "/v1/projects/\(projectId)/backers/\(backerId)",
+        ["backer_completed_at": received ? "1" : "0"], nil)
+
     case .categories:
       return (.GET, "/v1/categories", [:], nil)
 
@@ -123,6 +130,12 @@ internal enum Route {
         ].compact()
 
       return (.POST, pledgeUrl?.absoluteString ?? "", params, nil)
+
+    case .exportData:
+      return (.POST, "/v1/users//self/queue_export_data", [:], nil)
+
+    case .exportDataState:
+      return (.GET, "/v1/users/self/download_export_data", [:], nil)
 
     case let .deleteImage(i, draft):
       return (.DELETE, "/v1/projects/\(draft.update.projectId)/updates/draft/images/\(i.id)", [:], nil)
@@ -322,7 +335,8 @@ internal enum Route {
       return (.PUT, "/v1/users/self/notifications/\(notification.id)", params, nil)
 
     case let .updateUserSelf(user):
-      let params = user.notifications.encode().withAllValuesFrom(user.newsletters.encode())
+      let params = user.encode()
+
       return (.PUT, "/v1/users/self", params, nil)
 
     case .userProjectsBacked:
@@ -333,7 +347,6 @@ internal enum Route {
 
     case let .user(userId):
       return (.GET, "/v1/users/\(userId)", [:], nil)
-
     }
   }
 }

@@ -14,7 +14,7 @@ public protocol SurveyResponseViewModelInputs {
   func configureWith(surveyResponse: SurveyResponse)
 
   /// Call when the webview decides whether to load a request.
-  func shouldStartLoad(withRequest request: URLRequest, navigationType: UIWebViewNavigationType) -> Bool
+  func shouldStartLoad(withRequest request: URLRequest, navigationType: UIWebView.NavigationType) -> Bool
 
   /// Call when the view loads.
   func viewDidLoad()
@@ -101,16 +101,16 @@ public final class SurveyResponseViewModel: SurveyResponseViewModelType {
       .map { request in AppEnvironment.current.apiService.preparedRequest(forRequest: request) }
   }
 
-  fileprivate let alertButtonTappedProperty = MutableProperty()
+  fileprivate let alertButtonTappedProperty = MutableProperty(())
   public func alertButtonTapped() { self.alertButtonTappedProperty.value = () }
 
-  fileprivate let closeButtonTappedProperty = MutableProperty()
+  fileprivate let closeButtonTappedProperty = MutableProperty(())
   public func closeButtonTapped() { self.closeButtonTappedProperty.value = () }
 
-  fileprivate let shouldStartLoadProperty = MutableProperty<(URLRequest, UIWebViewNavigationType)?>(nil)
+  fileprivate let shouldStartLoadProperty = MutableProperty<(URLRequest, UIWebView.NavigationType)?>(nil)
   fileprivate let shouldStartLoadResponseProperty = MutableProperty(false)
   public func shouldStartLoad(withRequest request: URLRequest,
-                              navigationType: UIWebViewNavigationType) -> Bool {
+                              navigationType: UIWebView.NavigationType) -> Bool {
     self.shouldStartLoadProperty.value = (request, navigationType)
     return self.shouldStartLoadResponseProperty.value
   }
@@ -120,7 +120,7 @@ public final class SurveyResponseViewModel: SurveyResponseViewModelType {
     self.surveyResponseProperty.value = surveyResponse
   }
 
-  fileprivate let viewDidLoadProperty = MutableProperty()
+  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() { self.viewDidLoadProperty.value = () }
 
   public let dismissViewController: Signal<Void, NoError>

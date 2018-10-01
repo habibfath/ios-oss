@@ -93,7 +93,8 @@ public protocol DashboardViewModelOutputs {
   var loaderIsAnimating: Signal<Bool, NoError> { get }
 
   /// Emits the cumulative, project, and referreral distribution data to display in the referrers cell.
-  var referrerData: Signal<(cumulative: ProjectStatsEnvelope.CumulativeStats, project: Project,
+  var referrerData: Signal<(cumulative: ProjectStatsEnvelope.CumulativeStats,
+    project: Project, aggregates: ProjectStatsEnvelope.ReferralAggregateStats,
     stats: [ProjectStatsEnvelope.ReferrerStats]), NoError> { get }
 
   /// Emits the project, reward stats, and cumulative pledges to display in the rewards cell.
@@ -112,7 +113,7 @@ public protocol DashboardViewModelType {
 }
 
 public final class DashboardViewModel: DashboardViewModelInputs, DashboardViewModelOutputs,
-  DashboardViewModelType {
+DashboardViewModelType {
 
   public init() {
     let projects = self.viewWillAppearAnimatedProperty.signal.ignoreValues()
@@ -214,7 +215,8 @@ public final class DashboardViewModel: DashboardViewModelInputs, DashboardViewMo
 
     self.referrerData = selectedProjectAndStats
       .map { project, stats in
-        (cumulative: stats.cumulativeStats, project: project, stats: stats.referralDistribution)
+        (cumulative: stats.cumulativeStats, project: project,
+         aggregates: stats.referralAggregateStats, stats: stats.referralDistribution)
     }
 
     self.videoStats = selectedProjectAndStats.map { _, stats in stats.videoStats }.skipNil()
@@ -320,11 +322,11 @@ public final class DashboardViewModel: DashboardViewModelInputs, DashboardViewMo
       .observeValues { AppEnvironment.current.koala.trackDashboardSwitchProject($0) }
   }
 
-  fileprivate let showHideProjectsDrawerProperty = MutableProperty()
+  fileprivate let showHideProjectsDrawerProperty = MutableProperty(())
   public func showHideProjectsDrawer() {
     self.showHideProjectsDrawerProperty.value = ()
   }
-  fileprivate let projectContextCellTappedProperty = MutableProperty()
+  fileprivate let projectContextCellTappedProperty = MutableProperty(())
   public func projectContextCellTapped() {
     self.projectContextCellTappedProperty.value = ()
   }
@@ -340,11 +342,11 @@ public final class DashboardViewModel: DashboardViewModelInputs, DashboardViewMo
   public func messageThreadNavigated(projectId: Param, messageThread: MessageThread) {
     self.messageThreadNavigatedProperty.value = (projectId, messageThread)
   }
-  fileprivate let projectsDrawerDidAnimateOutProperty = MutableProperty()
+  fileprivate let projectsDrawerDidAnimateOutProperty = MutableProperty(())
   public func dashboardProjectsDrawerDidAnimateOut() {
     self.projectsDrawerDidAnimateOutProperty.value = ()
   }
-  fileprivate let viewDidLoadProperty = MutableProperty()
+  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
   }
@@ -352,11 +354,11 @@ public final class DashboardViewModel: DashboardViewModelInputs, DashboardViewMo
   public func viewWillAppear(animated: Bool) {
     self.viewWillAppearAnimatedProperty.value = animated
   }
-  fileprivate let viewWillDisappearProperty = MutableProperty()
+  fileprivate let viewWillDisappearProperty = MutableProperty(())
   public func viewWillDisappear() {
     self.viewWillDisappearProperty.value = ()
   }
-  fileprivate let messagesCellTappedProperty = MutableProperty()
+  fileprivate let messagesCellTappedProperty = MutableProperty(())
   public func messagesCellTapped() {
     self.messagesCellTappedProperty.value = ()
   }
@@ -373,7 +375,8 @@ public final class DashboardViewModel: DashboardViewModelInputs, DashboardViewMo
   public let project: Signal<Project, NoError>
   public let loaderIsAnimating: Signal<Bool, NoError>
   public let presentProjectsDrawer: Signal<[ProjectsDrawerData], NoError>
-  public let referrerData: Signal<(cumulative: ProjectStatsEnvelope.CumulativeStats, project: Project,
+  public let referrerData: Signal<(cumulative: ProjectStatsEnvelope.CumulativeStats,
+    project: Project, aggregates: ProjectStatsEnvelope.ReferralAggregateStats,
     stats: [ProjectStatsEnvelope.ReferrerStats]), NoError>
   public let rewardData: Signal<(stats: [ProjectStatsEnvelope.RewardStats], project: Project), NoError>
   public let videoStats: Signal<ProjectStatsEnvelope.VideoStats, NoError>

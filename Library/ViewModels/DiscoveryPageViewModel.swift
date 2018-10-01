@@ -8,6 +8,9 @@ public protocol DiscoveryPageViewModelInputs {
   /// Call with the sort provided to the view.
   func configureWith(sort: DiscoveryParams.Sort)
 
+  /// Call when the current environment has changed
+  func currentEnvironmentChanged(environment: EnvironmentType)
+
   /// Call when the filter is changed.
   func selectedFilter(_ params: DiscoveryParams)
 
@@ -64,8 +67,8 @@ public protocol DiscoveryPageViewModelOutputs {
   /// Emits a project and update when should go to update.
   var goToProjectUpdate: Signal<(Project, Update), NoError> { get }
 
-  /// Emits a list of projects that should be shown.
-  var projects: Signal<[Project], NoError> { get }
+  /// Emits a list of projects that should be shown, and the corresponding filter request params
+  var projectsLoaded: Signal<([Project], DiscoveryParams?), NoError> { get }
 
   /// Emits a boolean that determines if projects are currently loading or not.
   var projectsAreLoading: Signal<Bool, NoError> { get }
@@ -122,10 +125,25 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
       self.viewDidDisappearProperty.signal.mapConst(false)
       ).skipRepeats()
 
-    let requestFirstPageWith = Signal.combineLatest(currentUser, paramsChanged, isVisible)
-      .filter { _, _, visible in visible }
-      .skipRepeats { lhs, rhs in lhs.0 == rhs.0 && lhs.1 == rhs.1 }
-      .map(second)
+    let environmentChanged = self.currentEnvironmentChangedProperty.signal
+      .skipNil()
+      .skipRepeats()
+
+    let firstPageParams = Signal.combineLatest(
+      currentUser,
+      paramsChanged,
+      isVisible)
+      .filter { _, _, visible in
+        return visible
+      }
+      .skipRepeats { lhs, rhs in
+        return lhs.0 == rhs.0 && lhs.1 == rhs.1
+      }
+      .map { $0.1 }
+
+    let requestFirstPageWith = Signal.merge(
+        firstPageParams,
+        (firstPageParams.takeWhen(environmentChanged)))
 
     let paginatedProjects: Signal<[Project], NoError>
     let pageCount: Signal<Int, NoError>
@@ -140,23 +158,31 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
       requestFromCursor: { AppEnvironment.current.apiService.fetchDiscovery(paginationUrl: $0) },
       concater: { ($0 + $1).distincts() })
 
-    self.projects = Signal.merge(
-      paginatedProjects,
-      self.selectedFilterProperty.signal.skipNil().skipRepeats().mapConst([])
+      let projects = Signal.merge(
+        paginatedProjects,
+        self.selectedFilterProperty.signal.skipNil().skipRepeats().mapConst([])
       )
       .skip { $0.isEmpty }
       .skipRepeats(==)
 
-    self.asyncReloadData = self.projects.take(first: 1).ignoreValues()
+      self.projectsLoaded =  self.selectedFilterProperty.signal
+        .takePairWhen(projects)
+        .map { ($1, $0) }
 
-    self.showEmptyState = paramsChanged
-      .takeWhen(paginatedProjects.filter { $0.isEmpty })
-      .map(emptyState(forParams:))
+    self.asyncReloadData = self.projectsLoaded.take(first: 1).ignoreValues()
+
+    self.showEmptyState = Signal.combineLatest(paramsChanged, self.projectsAreLoading, paginatedProjects)
+      .filter { _, projectsAreLoading, projects in projectsAreLoading == false && projects.isEmpty }
+      .map { params, _, _ in
+        emptyState(forParams: params)
+      }
       .skipNil()
       .skipRepeats()
 
     self.hideEmptyState = Signal.merge(
       self.viewWillAppearProperty.signal.take(first: 1),
+      self.asyncReloadData,
+      paginatedProjects.filter { !$0.isEmpty }.ignoreValues(),
       paramsChanged.skip(first: 1).ignoreValues()
     )
 
@@ -180,7 +206,7 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
 
     self.goToActivityProject = activitySampleTapped
 
-    self.goToProjectPlaylist = self.projects
+    self.goToProjectPlaylist = projects
       .takePairWhen(projectCardTapped)
       .map(unpack)
       .map { projects, project, refTag in (project, projects, refTag) }
@@ -238,6 +264,11 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     )
   }
 
+  fileprivate let currentEnvironmentChangedProperty = MutableProperty<EnvironmentType?>(nil)
+  public func currentEnvironmentChanged(environment: EnvironmentType) {
+    self.currentEnvironmentChangedProperty.value = environment
+  }
+
   fileprivate let sortProperty = MutableProperty<DiscoveryParams.Sort?>(nil)
   public func configureWith(sort: DiscoveryParams.Sort) {
     self.sortProperty.value = sort
@@ -258,15 +289,15 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   public func transitionedToProject(at row: Int, outOf totalRows: Int) {
     self.transitionedToProjectRowAndTotalProperty.value = (row, totalRows)
   }
-  fileprivate let userSessionStartedProperty = MutableProperty()
+  fileprivate let userSessionStartedProperty = MutableProperty(())
   public func userSessionStarted() {
     self.userSessionStartedProperty.value = ()
   }
-  fileprivate let userSessionEndedProperty = MutableProperty()
+  fileprivate let userSessionEndedProperty = MutableProperty(())
   public func userSessionEnded() {
     self.userSessionEndedProperty.value = ()
   }
-  fileprivate let viewDidAppearProperty = MutableProperty()
+  fileprivate let viewDidAppearProperty = MutableProperty(())
   public func viewDidAppear() {
     self.viewDidAppearProperty.value = ()
   }
@@ -274,7 +305,7 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   public func viewDidDisappear(animated: Bool) {
     self.viewDidDisappearProperty.value = animated
   }
-  fileprivate let viewWillAppearProperty = MutableProperty()
+  fileprivate let viewWillAppearProperty = MutableProperty(())
   public func viewWillAppear() {
     self.viewWillAppearProperty.value = ()
   }
@@ -289,7 +320,7 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   public var goToActivityProject: Signal<(Project, RefTag), NoError>
   public let goToProjectPlaylist: Signal<(Project, [Project], RefTag), NoError>
   public let goToProjectUpdate: Signal<(Project, Update), NoError>
-  public let projects: Signal<[Project], NoError>
+  public let projectsLoaded: Signal<([Project], DiscoveryParams?), NoError>
   public let projectsAreLoading: Signal<Bool, NoError>
   public let setScrollsToTop: Signal<Bool, NoError>
   public let scrollToProjectRow: Signal<Int, NoError>
@@ -327,6 +358,7 @@ private func refTag(fromParams params: DiscoveryParams, project: Project) -> Ref
 }
 
 private func emptyState(forParams params: DiscoveryParams) -> EmptyState? {
+
   if params.starred == .some(true) {
     return .starred
   } else if params.recommended == .some(true) {

@@ -38,8 +38,8 @@ internal final class BackerDashboardViewController: UIViewController {
   internal override func viewDidLoad() {
     super.viewDidLoad()
 
-    self.pageViewController = self.childViewControllers
-      .flatMap { $0 as? UIPageViewController }.first
+    self.pageViewController = self.children
+      .compactMap { $0 as? UIPageViewController }.first
     self.pageViewController.setViewControllers(
       [.init()],
       direction: .forward,
@@ -63,6 +63,10 @@ internal final class BackerDashboardViewController: UIViewController {
     panGesture.addTarget(self, action: #selector(handlePan))
     panGesture.delegate = self
     self.view.addGestureRecognizer(panGesture)
+
+    let tapRecognizer = UITapGestureRecognizer(target: self, action: #selector(tapGestureNotifier))
+    tapRecognizer.cancelsTouchesInView = false
+    self.pageViewController.view.addGestureRecognizer(tapRecognizer)
 
     self.viewModel.inputs.viewDidLoad()
   }
@@ -106,7 +110,7 @@ internal final class BackerDashboardViewController: UIViewController {
       .observeForControllerAction()
       .observeValues { [weak self] _ in
         guard let _self = self else { return }
-        let vc = MessageThreadsViewController.configuredWith(project: nil)
+        let vc = MessageThreadsViewController.configuredWith(project: nil, refTag: .profile)
         _self.navigationController?.pushViewController(vc, animated: true)
     }
 
@@ -122,7 +126,6 @@ internal final class BackerDashboardViewController: UIViewController {
         guard let _self = self, let controller = self?.pagesDataSource.controllerFor(tab: tab) else {
           fatalError("Controller not found for tab \(tab)")
         }
-
         _self.pageViewController.setViewControllers(
           [controller],
           direction: .forward,
@@ -200,22 +203,22 @@ internal final class BackerDashboardViewController: UIViewController {
 
   private func setAttributedTitles(for button: UIButton, with string: String) {
     let normalTitleString = NSAttributedString(string: string, attributes: [
-      NSFontAttributeName: self.traitCollection.isRegularRegular
+      NSAttributedString.Key.font: self.traitCollection.isRegularRegular
         ? UIFont.ksr_headline(size: 16.0)
         : UIFont.ksr_headline(size: 13.0),
-      NSForegroundColorAttributeName: UIColor.ksr_text_dark_grey_500
+      NSAttributedString.Key.foregroundColor: UIColor.ksr_text_dark_grey_500
       ])
 
     let selectedTitleString = NSAttributedString(string: string, attributes: [
-      NSFontAttributeName: self.traitCollection.isRegularRegular
+      NSAttributedString.Key.font: self.traitCollection.isRegularRegular
         ? UIFont.ksr_headline(size: 16.0)
         : UIFont.ksr_headline(size: 13.0),
-      NSForegroundColorAttributeName: UIColor.ksr_dark_grey_900
+      NSAttributedString.Key.foregroundColor: UIColor.ksr_dark_grey_900
       ])
 
     _ = button
-      |> UIButton.lens.attributedTitle(forState: .normal) %~ { _ in normalTitleString }
-      |> UIButton.lens.attributedTitle(forState: .selected) %~ { _ in selectedTitleString }
+      |> UIButton.lens.attributedTitle(for: .normal) %~ { _ in normalTitleString }
+      |> UIButton.lens.attributedTitle(for: .selected) %~ { _ in selectedTitleString }
       |> (UIButton.lens.titleLabel..UILabel.lens.lineBreakMode) .~ .byWordWrapping
   }
 
@@ -224,7 +227,7 @@ internal final class BackerDashboardViewController: UIViewController {
 
     for (idx, button) in self.menuButtonsStackView.arrangedSubviews.enumerated() {
       _ = (button as? UIButton)
-        ?|> UIButton.lens.selected .~ (idx == index)
+        ?|> UIButton.lens.isSelected .~ (idx == index)
     }
   }
 
@@ -250,14 +253,14 @@ internal final class BackerDashboardViewController: UIViewController {
 
   private func goToSettings() {
     let vc = SettingsViewController.instantiate()
+    let nav = UINavigationController(rootViewController: vc)
+    nav.modalPresentationStyle = .formSheet
 
-    if UIDevice.current.userInterfaceIdiom == .pad {
-      let nav = UINavigationController(rootViewController: vc)
-      nav.modalPresentationStyle = .formSheet
-      self.present(nav, animated: true, completion: nil)
-    } else {
-      self.navigationController?.pushViewController(vc, animated: true)
-    }
+    self.present(nav, animated: true, completion: nil)
+  }
+
+  @objc private func tapGestureNotifier() {
+    NotificationCenter.default.post(name: Notification.Name.ksr_savedProjectEmptyStateTapped, object: nil)
   }
 
   @objc private func messagesButtonTapped() {

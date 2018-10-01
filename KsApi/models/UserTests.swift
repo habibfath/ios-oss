@@ -35,7 +35,10 @@ final class UserTests: XCTestCase {
         "localized_name": "Brooklyn, NY",
         "name": "Brooklyn"
       ],
-      "is_friend": false
+      "is_friend": false,
+      "opted_out_of_recommendations": true,
+      "show_public_profile": false,
+      "social": true
     ]
     let decoded = User.decodeJSONDictionary(json)
     let user = decoded.value
@@ -78,7 +81,10 @@ final class UserTests: XCTestCase {
         "localized_name": "Brooklyn, NY",
         "name": "Brooklyn"
       ],
-      "is_friend": false
+      "is_friend": false,
+      "opted_out_of_recommendations": true,
+      "show_public_profile": false,
+      "social": true
     ]
     let user = User.decodeJSONDictionary(json)
 

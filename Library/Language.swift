@@ -24,13 +24,23 @@ public enum Language: String {
   public init?(languageStrings languages: [String]) {
     guard let language = languages
       .lazy
-      .map({ String($0.characters.prefix(2)) })
-      .flatMap(Language.init(languageString:))
+      .map({ String($0.prefix(2)) })
+      .compactMap(Language.init(languageString:))
       .first else {
         return nil
     }
 
     self = language
+  }
+
+  public var displayString: String {
+    switch self {
+    case .de: return "German"
+    case .en: return "English"
+    case .es: return "Spanish"
+    case .fr: return "French"
+    case .ja: return "Japanese"
+    }
   }
 }
 

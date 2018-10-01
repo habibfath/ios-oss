@@ -65,6 +65,8 @@ internal final class DashboardReferrersCell: UITableViewCell, ValueCell {
       action: #selector(sourceButtonTapped),
       for: .touchUpInside
     )
+
+    self.viewModel.inputs.awakeFromNib()
   }
 
     internal override func bindStyles() {
@@ -79,7 +81,7 @@ internal final class DashboardReferrersCell: UITableViewCell, ValueCell {
 
     _ = self.backersColumnTitleButton
       |> dashboardColumnTitleButtonStyle
-      |> UIButton.lens.title(forState: .normal) %~ { _ in Strings.dashboard_graphs_referrers_backers() }
+      |> UIButton.lens.title(for: .normal) %~ { _ in Strings.dashboard_graphs_referrers_backers() }
 
     _ = self.customPercentLabel
       |> dashboardReferrersPledgePercentLabelStyle
@@ -122,7 +124,7 @@ internal final class DashboardReferrersCell: UITableViewCell, ValueCell {
 
     _ = self.pledgedColumnTitleButton
       |> dashboardColumnTitleButtonStyle
-      |> UIButton.lens.title(forState: .normal) %~ { _ in Strings.dashboard_graphs_referrers_pledged() }
+      |> UIButton.lens.title(for: .normal) %~ { _ in Strings.dashboard_graphs_referrers_pledged() }
 
     _ = self.referrersTitleLabel
       |> dashboardReferrersTitleLabelStyle
@@ -135,7 +137,7 @@ internal final class DashboardReferrersCell: UITableViewCell, ValueCell {
 
     _ = self.sourceColumnTitleButton
       |> dashboardColumnTitleButtonStyle
-      |> UIButton.lens.title(forState: .normal) %~ { _ in Strings.dashboard_graphs_referrers_source() }
+      |> UIButton.lens.title(for: .normal) %~ { _ in Strings.dashboard_graphs_referrers_source() }
 
     _ = self.chartCardView
       |> dashboardChartCardViewStyle
@@ -205,10 +207,10 @@ internal final class DashboardReferrersCell: UITableViewCell, ValueCell {
     }
   }
 
-  internal func configureWith(value: (ProjectStatsEnvelope.CumulativeStats,
-                                            Project,
-                                            [ProjectStatsEnvelope.ReferrerStats])) {
-    self.viewModel.inputs.configureWith(cumulative: value.0, project: value.1, referrers: value.2)
+  internal func configureWith(value: (ProjectStatsEnvelope.CumulativeStats, Project,
+    ProjectStatsEnvelope.ReferralAggregateStats, [ProjectStatsEnvelope.ReferrerStats])) {
+    self.viewModel.inputs.configureWith(cumulative: value.0, project: value.1,
+                                        referralAggregates: value.2, referrers: value.3 )
   }
 
   @objc fileprivate func backersButtonTapped() {

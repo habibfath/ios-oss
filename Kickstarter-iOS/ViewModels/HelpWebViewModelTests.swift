@@ -1,4 +1,5 @@
 @testable import Library
+@testable import KsApi
 @testable import Kickstarter_Framework
 @testable import ReactiveExtensions_TestHelpers
 import Prelude
@@ -19,6 +20,7 @@ internal final class HelpWebViewModelTests: TestCase {
   }
 
   func testWebRequestURLString() {
+
     self.vm.inputs.configureWith(helpType: .cookie)
 
     self.webViewLoadRequest.assertValueCount(0)
@@ -27,25 +29,27 @@ internal final class HelpWebViewModelTests: TestCase {
 
     self.webViewLoadRequest.assertValues(["/cookies"])
 
-    self.vm.inputs.configureWith(helpType: .faq)
+    self.vm.inputs.configureWith(helpType: .helpCenter)
     self.vm.inputs.viewDidLoad()
 
-    self.webViewLoadRequest.assertValues(["/cookies", "/help/faq/kickstarter+basics"])
+    self.webViewLoadRequest.assertValues(["/cookies", "/help"])
 
     self.vm.inputs.configureWith(helpType: .howItWorks)
     self.vm.inputs.viewDidLoad()
 
-    self.webViewLoadRequest.assertValues(["/cookies", "/help/faq/kickstarter+basics", "/about"])
+    self.webViewLoadRequest.assertValues(["/cookies", "/help", "/about"])
 
     self.vm.inputs.configureWith(helpType: .privacy)
     self.vm.inputs.viewDidLoad()
 
-    self.webViewLoadRequest.assertValues(["/cookies", "/help/faq/kickstarter+basics", "/about", "/privacy"])
+    self.webViewLoadRequest.assertValues(
+      ["/cookies", "/help", "/about", "/privacy"]
+    )
 
     self.vm.inputs.configureWith(helpType: .terms)
     self.vm.inputs.viewDidLoad()
 
-    self.webViewLoadRequest.assertValues(["/cookies", "/help/faq/kickstarter+basics", "/about", "/privacy",
+    self.webViewLoadRequest.assertValues(["/cookies", "/help", "/about", "/privacy",
       "/terms-of-use"])
   }
 }

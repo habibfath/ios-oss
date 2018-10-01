@@ -49,7 +49,8 @@ public protocol DiscoveryViewModelOutputs {
   var loadFilterIntoDataSource: Signal<DiscoveryParams, NoError> { get }
 
   /// Emits when we should manually navigate to a sort's page.
-  var navigateToSort: Signal<(DiscoveryParams.Sort, UIPageViewControllerNavigationDirection), NoError> { get }
+  var navigateToSort: Signal<(DiscoveryParams.Sort, UIPageViewController.NavigationDirection),
+    NoError> { get }
 
   /// Emits a sort that should be passed on to the sort pager view controller.
   var selectSortPage: Signal<DiscoveryParams.Sort, NoError> { get }
@@ -69,9 +70,14 @@ public protocol DiscoveryViewModelType {
   var outputs: DiscoveryViewModelOutputs { get }
 }
 
+private func initialParam() -> DiscoveryParams {
+
+    return DiscoveryParams.defaults
+      |> DiscoveryParams.lens.includePOTD .~ true
+}
+
 public final class DiscoveryViewModel: DiscoveryViewModelType, DiscoveryViewModelInputs,
 DiscoveryViewModelOutputs {
-  fileprivate static let defaultParams = .defaults |> DiscoveryParams.lens.includePOTD .~ true
 
   public init() {
     let sorts: [DiscoveryParams.Sort] = [.magic, .popular, .newest, .endingSoon, .mostFunded]
@@ -80,10 +86,10 @@ DiscoveryViewModelOutputs {
     self.configureSortPager = self.configurePagerDataSource
 
     let currentParams = Signal.merge(
-      self.viewWillAppearProperty.signal.take(first: 1).mapConst(DiscoveryViewModel.defaultParams),
+      self.viewWillAppearProperty.signal.take(first: 1).map { _ in initialParam() },
       self.filterWithParamsProperty.signal.skipNil()
       )
-      .skipRepeats()
+    .skipRepeats()
 
     self.configureNavigationHeader = currentParams
 
@@ -166,7 +172,7 @@ DiscoveryViewModelOutputs {
   public func willTransition(toPage nextPage: Int) {
     self.willTransitionToPageProperty.value = nextPage
   }
-  fileprivate let viewDidLoadProperty = MutableProperty()
+  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
   }
@@ -182,7 +188,7 @@ DiscoveryViewModelOutputs {
   public let discoveryPagesViewHidden: Signal<Bool, NoError>
   public let liveStreamDiscoveryViewHidden: Signal<Bool, NoError>
   public let loadFilterIntoDataSource: Signal<DiscoveryParams, NoError>
-  public let navigateToSort: Signal<(DiscoveryParams.Sort, UIPageViewControllerNavigationDirection), NoError>
+  public let navigateToSort: Signal<(DiscoveryParams.Sort, UIPageViewController.NavigationDirection), NoError>
   public let selectSortPage: Signal<DiscoveryParams.Sort, NoError>
   public let sortsAreEnabled: Signal<Bool, NoError>
   public let sortViewHidden: Signal<Bool, NoError>

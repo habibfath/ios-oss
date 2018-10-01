@@ -36,6 +36,9 @@ public protocol LoginViewModelInputs {
   /// Call when reset password button is pressed.
   func resetPasswordButtonPressed()
 
+  /// Call when the show/hide password button is pressed.
+  func showHidePasswordButtonTapped()
+
   /// Call when the view did load.
   func viewDidLoad()
 
@@ -72,13 +75,16 @@ public protocol LoginViewModelOutputs {
   var passwordTextFieldBecomeFirstResponder: Signal<(), NoError> { get }
 
   /// Emits when a login success notification should be posted.
-  var postNotification: Signal<Notification, NoError> { get }
+  var postNotification: Signal<(Notification, Notification), NoError> { get }
 
   /// Emits when a login error has occurred and a message should be displayed.
   var showError: Signal<String, NoError> { get }
 
   /// Emits when the reset password screen should be shown
   var showResetPassword: Signal<(), NoError> { get }
+
+  // Emits when the show/hide password button is toggled
+  var showHidePasswordButtonToggled: Signal<Bool, NoError> { get }
 
   /// Emits when TFA is required for login.
   var tfaChallenge: Signal<(email: String, password: String), NoError> { get }
@@ -129,7 +135,12 @@ public final class LoginViewModel: LoginViewModelType, LoginViewModelInputs, Log
       .map { (email: $0, password: $1) }
 
     self.postNotification = self.environmentLoggedInProperty.signal
-      .mapConst(Notification(name: .ksr_sessionStarted))
+      .mapConst(
+        (Notification(name: .ksr_sessionStarted),
+         Notification(name: .ksr_showNotificationsDialog,
+                      userInfo: [UserInfoKeys.context: PushNotificationDialog.Context.login]))
+      )
+
     self.dismissKeyboard = self.passwordTextFieldDoneEditingProperty.signal
     self.passwordTextFieldBecomeFirstResponder = self.emailTextFieldDoneEditingProperty.signal
 
@@ -158,6 +169,8 @@ public final class LoginViewModel: LoginViewModelType, LoginViewModelInputs, Log
     self.logIntoEnvironment
       .observeValues { _ in AppEnvironment.current.koala.trackLoginSuccess(authType: Koala.AuthType.email) }
 
+    self.showHidePasswordButtonToggled = self.shouldShowPasswordProperty.signal
+
     self.showError
       .observeValues { _ in AppEnvironment.current.koala.trackLoginError(authType: Koala.AuthType.email) }
   }
@@ -181,7 +194,7 @@ public final class LoginViewModel: LoginViewModelType, LoginViewModelInputs, Log
   public func loginButtonPressed() {
     self.loginButtonPressedProperty.value = ()
   }
-  fileprivate let onePasswordButtonTappedProperty = MutableProperty()
+  fileprivate let onePasswordButtonTappedProperty = MutableProperty(())
   public func onePasswordButtonTapped() {
     self.onePasswordButtonTappedProperty.value = ()
   }
@@ -211,7 +224,13 @@ public final class LoginViewModel: LoginViewModelType, LoginViewModelInputs, Log
   public func resetPasswordButtonPressed() {
     self.resetPasswordPressedProperty.value = ()
   }
-  fileprivate let viewDidLoadProperty = MutableProperty()
+
+  fileprivate let shouldShowPasswordProperty = MutableProperty(false)
+  public func showHidePasswordButtonTapped() {
+    self.shouldShowPasswordProperty.value = shouldShowPasswordProperty.negate().value
+  }
+
+  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
   }
@@ -225,12 +244,13 @@ public final class LoginViewModel: LoginViewModelType, LoginViewModelInputs, Log
   public let onePasswordFindLoginForURLString: Signal<String, NoError>
   public let passwordText: Signal<String, NoError>
   public let passwordTextFieldBecomeFirstResponder: Signal<(), NoError>
-  public let postNotification: Signal<Notification, NoError>
+  public let postNotification: Signal<(Notification, Notification), NoError>
   public let showError: Signal<String, NoError>
   public let showResetPassword: Signal<(), NoError>
+  public let showHidePasswordButtonToggled: Signal<Bool, NoError>
   public let tfaChallenge: Signal<(email: String, password: String), NoError>
 }
 
 private func isValid(email: String, password: String) -> Bool {
-  return isValidEmail(email) && !password.characters.isEmpty
+  return isValidEmail(email) && !password.isEmpty
 }

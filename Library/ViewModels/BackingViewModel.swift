@@ -16,6 +16,9 @@ public protocol BackingViewModelInputs {
 
   /// Call when the "View messages" button is pressed.
   func viewMessagesTapped()
+
+  /// Call when user taps reward received.
+  func rewardReceivedTapped(on: Bool)
 }
 
 public protocol BackingViewModelOutputs {
@@ -37,6 +40,9 @@ public protocol BackingViewModelOutputs {
   /// Emits a bool to animate the loader.
   var loaderIsAnimating: Signal<Bool, NoError> { get }
 
+  /// Emits a bool whether to hide the mark as received section.
+  var markAsReceivedSectionIsHidden: Signal<Bool, NoError> { get }
+
   /// Emits the button title for messaging a backer or creator.
   var messageButtonTitleText: Signal<String, NoError> { get }
 
@@ -52,6 +58,9 @@ public protocol BackingViewModelOutputs {
   /// Emits the backer reward description to display.
   var rewardDescription: Signal<String, NoError> { get }
 
+  /// Emits a bool to mark reward received.
+  var rewardMarkedReceived: Signal<Bool, NoError> { get }
+
   /// Emits a bool whether to hide the reward section if it's No Reward.
   var rewardSectionAndShippingIsHidden: Signal<Bool, NoError> { get }
 
@@ -62,7 +71,7 @@ public protocol BackingViewModelOutputs {
   var rewardTitleWithAmount: Signal<String, NoError> { get }
 
   /// Emits the axis of the stackview.
-  var rootStackViewAxis: Signal<UILayoutConstraintAxis, NoError> { get }
+  var rootStackViewAxis: Signal<NSLayoutConstraint.Axis, NoError> { get }
 
   /// Emits the backer's shipping amount.
   var shippingAmount: Signal<String, NoError> { get }
@@ -72,6 +81,7 @@ public protocol BackingViewModelOutputs {
 
   /// Emits text for total pledge amount label.
   var totalPledgeAmount: Signal<String, NoError> { get }
+
 }
 
 public protocol BackingViewModelType {
@@ -81,7 +91,7 @@ public protocol BackingViewModelType {
 
 public final class BackingViewModel: BackingViewModelType, BackingViewModelInputs, BackingViewModelOutputs {
 
-    public init() {
+  public init() {
     let projectAndBackerAndBackerIsCurrentUser = Signal.combineLatest(
       self.projectAndBackerProperty.signal.skipNil(),
       self.viewDidLoadProperty.signal
@@ -109,9 +119,35 @@ public final class BackingViewModel: BackingViewModelType, BackingViewModelInput
 
     let project = projectAndBackingAndBackerIsCurrentUser.map(first)
     let backing = projectAndBackingAndBackerIsCurrentUser.map(second)
+
     let reward = backing.map { $0.reward }.skipNil()
     let basicBacker = projectAndBackerAndBackerIsCurrentUser.map(second)
     let emptyStringOnLoad = self.viewDidLoadProperty.signal.mapConst("")
+    let projectAndBacker = Signal.combineLatest(project, basicBacker)
+
+    let rewardReceivedEvent = projectAndBacker
+      .takePairWhen(self.rewardReceivedTappedProperty.signal)
+      .map(unpack)
+      .switchMap { project, backer, received in
+        AppEnvironment.current.apiService.backingUpdate(
+          forProject: project, forUser: backer, received: received)
+          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+          .materialize()
+    }
+
+    let markedReceivedBacking = rewardReceivedEvent.values().map { $0 }
+
+    self.rewardMarkedReceived = Signal.merge(backing, markedReceivedBacking)
+      .map { $0.backerCompleted ?? false }
+      .skipRepeats()
+
+    self.markAsReceivedSectionIsHidden = Signal.merge (
+      self.viewDidLoadProperty.signal.mapConst(true),
+      projectAndBackingAndBackerIsCurrentUser.map { project, backing, backer in
+        shouldHideMarkReceived(backing: backing, project: project, backer: backer )
+      }
+    )
+    .skip(first: 1)
 
     self.backerSequence = Signal.merge(
       self.viewDidLoadProperty.signal
@@ -138,7 +174,7 @@ public final class BackingViewModel: BackingViewModelType, BackingViewModelInput
     self.pledgeAmount = Signal.merge(
       emptyStringOnLoad,
       projectAndBackingAndBackerIsCurrentUser.map { project, backing, _ in
-        let basicPledge = backing.amount - (backing.shippingAmount ?? 0)
+        let basicPledge = backing.amount - Double((backing.shippingAmount ?? 0))
         return Format.currency(basicPledge, country: project.country)
       }
     )
@@ -218,9 +254,9 @@ public final class BackingViewModel: BackingViewModelType, BackingViewModelInput
       .map { _ in AppEnvironment.current.language == .en ? .horizontal : .vertical }
 
     project.observeValues { AppEnvironment.current.koala.trackViewedPledge(forProject: $0) }
-  }
+}
 
-  fileprivate let messageCreatorTappedProperty = MutableProperty()
+  fileprivate let messageCreatorTappedProperty = MutableProperty(())
   public func messageCreatorTapped() {
     self.messageCreatorTappedProperty.value = ()
   }
@@ -230,14 +266,19 @@ public final class BackingViewModel: BackingViewModelType, BackingViewModelInput
     self.projectAndBackerProperty.value = (project, backer)
   }
 
-  fileprivate let viewDidLoadProperty = MutableProperty()
+  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
   }
 
-  fileprivate let viewMessagesTappedProperty = MutableProperty()
+  fileprivate let viewMessagesTappedProperty = MutableProperty(())
   public func viewMessagesTapped() {
     self.viewMessagesTappedProperty.value = ()
+  }
+
+  fileprivate let rewardReceivedTappedProperty = MutableProperty(false)
+  public func rewardReceivedTapped(on: Bool) {
+    self.rewardReceivedTappedProperty.value = on
   }
 
   public let backerAvatarURL: Signal<URL?, NoError>
@@ -246,21 +287,38 @@ public final class BackingViewModel: BackingViewModelType, BackingViewModelInput
   public let goToMessageCreator: Signal<(MessageSubject, Koala.MessageDialogContext), NoError>
   public let goToMessages: Signal<(Project, Backing), NoError>
   public let loaderIsAnimating: Signal<Bool, NoError>
+  public let markAsReceivedSectionIsHidden: Signal<Bool, NoError>
   public let messageButtonTitleText: Signal<String, NoError>
   public let opacityForContainers: Signal<CGFloat, NoError>
   public let pledgeAmount: Signal<String, NoError>
   public let pledgeSectionTitle: Signal<NSAttributedString, NoError>
   public let rewardDescription: Signal<String, NoError>
+  public let rewardMarkedReceived: Signal<Bool, NoError>
   public let rewardSectionAndShippingIsHidden: Signal<Bool, NoError>
   public var rewardTitleWithAmount: Signal<String, NoError>
   public var rewardSectionTitle: Signal<NSAttributedString, NoError>
-  public let rootStackViewAxis: Signal<UILayoutConstraintAxis, NoError>
+  public let rootStackViewAxis: Signal<NSLayoutConstraint.Axis, NoError>
   public let shippingAmount: Signal<String, NoError>
   public let statusDescription: Signal<NSAttributedString, NoError>
   public let totalPledgeAmount: Signal<String, NoError>
 
   public var inputs: BackingViewModelInputs { return self }
   public var outputs: BackingViewModelOutputs { return self }
+}
+
+private func shouldHideMarkReceived(backing: Backing, project: Project, backer: Bool) -> Bool {
+
+  if backing.reward?.isNoReward == .some(true) {
+    return true
+  } else if backing.status != .collected {
+    return true
+  } else if !project.memberData.permissions.isEmpty && backer {
+    return false
+  } else if !project.memberData.permissions.isEmpty {
+    return true
+  } else {
+    return false
+  }
 }
 
 private func statusDescString(for backing: Backing, project: Project, backerIsCurrentUser: Bool)
@@ -299,13 +357,13 @@ private func statusDescString(for backing: Backing, project: Project, backerIsCu
 
   if backing.status == .collected {
     return NSAttributedString(string: string, attributes: [
-      NSFontAttributeName: UIFont.ksr_headline(size: 13),
-      NSForegroundColorAttributeName: UIColor.ksr_green_700
+      NSAttributedString.Key.font: UIFont.ksr_headline(size: 13),
+      NSAttributedString.Key.foregroundColor: UIColor.ksr_green_700
     ])
   } else {
     return NSAttributedString(string: string, attributes: [
-      NSFontAttributeName: UIFont.ksr_subhead(size: 13),
-      NSForegroundColorAttributeName: UIColor.ksr_text_dark_grey_400
+      NSAttributedString.Key.font: UIFont.ksr_subhead(size: 13),
+      NSAttributedString.Key.foregroundColor: UIColor.ksr_text_dark_grey_400
     ])
   }
 }
@@ -321,12 +379,12 @@ private func pledgeTitle(for project: Project, backing: Backing, backerIsCurrent
 
   return titleString.simpleHtmlAttributedString(
     base: [
-      NSFontAttributeName: UIFont.ksr_subhead(size: 13),
-      NSForegroundColorAttributeName: UIColor.ksr_dark_grey_900
+      NSAttributedString.Key.font: UIFont.ksr_subhead(size: 13),
+      NSAttributedString.Key.foregroundColor: UIColor.ksr_dark_grey_900
     ],
     bold: [
-      NSFontAttributeName: UIFont.ksr_headline(size: 15),
-      NSForegroundColorAttributeName: UIColor.ksr_dark_grey_900
+      NSAttributedString.Key.font: UIFont.ksr_headline(size: 15),
+      NSAttributedString.Key.foregroundColor: UIColor.ksr_dark_grey_900
     ])
     ?? .init()
 }
@@ -346,12 +404,12 @@ private func rewardTitle(for reward: Reward?, project: Project, backerIsCurrentU
 
   return titleString.simpleHtmlAttributedString(
     base: [
-      NSFontAttributeName: UIFont.ksr_subhead(size: 13),
-      NSForegroundColorAttributeName: UIColor.ksr_dark_grey_900
+      NSAttributedString.Key.font: UIFont.ksr_subhead(size: 13),
+      NSAttributedString.Key.foregroundColor: UIColor.ksr_dark_grey_900
     ],
     bold: [
-      NSFontAttributeName: UIFont.ksr_headline(size: 15),
-      NSForegroundColorAttributeName: UIColor.ksr_dark_grey_900
+      NSAttributedString.Key.font: UIFont.ksr_headline(size: 15),
+      NSAttributedString.Key.foregroundColor: UIColor.ksr_dark_grey_900
     ])
     ?? .init()
 }

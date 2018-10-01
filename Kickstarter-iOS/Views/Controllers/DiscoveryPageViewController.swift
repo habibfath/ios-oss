@@ -8,7 +8,9 @@ internal final class DiscoveryPageViewController: UITableViewController {
   fileprivate var emptyStatesController: EmptyStatesViewController?
   fileprivate let dataSource = DiscoveryProjectsDataSource()
   fileprivate let loadingIndicatorView = UIActivityIndicatorView()
-
+  private var sessionEndedObserver: Any?
+  private var sessionStartedObserver: Any?
+  private var currentEnvironmentChangedObserver: Any?
   fileprivate let viewModel: DiscoveryPageViewModelType = DiscoveryPageViewModel()
   fileprivate let shareViewModel: ShareViewModelType = ShareViewModel()
 
@@ -29,20 +31,28 @@ internal final class DiscoveryPageViewController: UITableViewController {
 
     self.tableView.dataSource = self.dataSource
 
-    NotificationCenter.default
-      .addObserver(forName: Notification.Name.ksr_sessionStarted, object: nil, queue: nil) { [weak self] _ in
+    self.tableView.register(nib: Nib.DiscoveryPostcardCell)
+
+    self.sessionStartedObserver = NotificationCenter.default
+      .addObserver(forName: .ksr_sessionStarted, object: nil, queue: nil) { [weak self] _ in
         self?.viewModel.inputs.userSessionStarted()
     }
 
-    NotificationCenter.default
-      .addObserver(forName: Notification.Name.ksr_sessionEnded, object: nil, queue: nil) { [weak self] _ in
+    self.sessionEndedObserver = NotificationCenter.default
+      .addObserver(forName: .ksr_sessionEnded, object: nil, queue: nil) { [weak self] _ in
         self?.viewModel.inputs.userSessionEnded()
     }
+
+    self.currentEnvironmentChangedObserver = NotificationCenter.default
+      .addObserver(forName: .ksr_environmentChanged, object: nil, queue: nil, using: { [weak self] _ in
+        self?.viewModel.inputs.currentEnvironmentChanged(environment:
+          AppEnvironment.current.apiService.serverConfig.environment)
+      })
 
     let emptyVC = EmptyStatesViewController.configuredWith(emptyState: nil)
     self.emptyStatesController = emptyVC
     emptyVC.delegate = self
-    self.addChildViewController(emptyVC)
+    self.addChild(emptyVC)
     self.view.addSubview(emptyVC.view)
     NSLayoutConstraint.activate([
       emptyVC.view.topAnchor.constraint(equalTo: self.view.topAnchor),
@@ -50,7 +60,13 @@ internal final class DiscoveryPageViewController: UITableViewController {
       emptyVC.view.bottomAnchor.constraint(equalTo: self.view.bottomAnchor),
       emptyVC.view.trailingAnchor.constraint(equalTo: self.view.trailingAnchor),
       ])
-    emptyVC.didMove(toParentViewController: self)
+    emptyVC.didMove(toParent: self)
+  }
+
+  deinit {
+    self.sessionEndedObserver.doIfSome(NotificationCenter.default.removeObserver)
+    self.sessionStartedObserver.doIfSome(NotificationCenter.default.removeObserver)
+    self.currentEnvironmentChangedObserver.doIfSome(NotificationCenter.default.removeObserver)
   }
 
   internal override func viewWillAppear(_ animated: Bool) {
@@ -113,19 +129,21 @@ internal final class DiscoveryPageViewController: UITableViewController {
 
     self.viewModel.outputs.goToProjectPlaylist
       .observeForControllerAction()
-      .observeValues { [weak self] in self?.goTo(project: $0, initialPlaylist: $1, refTag: $2) }
+      .observeValues { [weak self] in
+        self?.goTo(project: $0, initialPlaylist: $1, refTag: $2)
+      }
 
     self.viewModel.outputs.goToProjectUpdate
       .observeForControllerAction()
       .observeValues { [weak self] project, update in self?.goTo(project: project, update: update) }
 
-    self.viewModel.outputs.projects
+    self.viewModel.outputs.projectsLoaded
       .observeForUI()
-      .observeValues { [weak self] projects in
-        self?.dataSource.load(projects: projects)
+      .observeValues { [weak self] projects, params in
+        self?.dataSource.load(projects: projects, params: params)
         self?.tableView.reloadData()
         self?.updateProjectPlaylist(projects)
-    }
+      }
 
     self.viewModel.outputs.showOnboarding
       .observeForUI()
@@ -245,11 +263,11 @@ internal final class DiscoveryPageViewController: UITableViewController {
 
     emptyVC.setEmptyState(emptyState)
     emptyVC.view.isHidden = false
-    self.view.bringSubview(toFront: emptyVC.view)
-    UIView.animate(withDuration: 0.3, animations: {
+    self.view.bringSubviewToFront(emptyVC.view)
+    UIView.animate(withDuration: 0.3,
+                   animations: {
       self.emptyStatesController?.view.alpha = 1.0
-    })
-
+    }, completion: nil)
     if let discovery = self.parent?.parent as? DiscoveryViewController {
       discovery.setSortsEnabled(false)
     }

@@ -4,13 +4,18 @@ BUILD_FLAGS = -scheme $(SCHEME) -destination $(DESTINATION)
 SCHEME ?= $(TARGET)-$(PLATFORM)
 TARGET ?= Kickstarter-Framework
 PLATFORM ?= iOS
-OS ?= 11.1
 RELEASE ?= beta
+IOS_VERSION ?= 12.0
+IPHONE_NAME ?= iPhone 8
 BRANCH ?= master
 DIST_BRANCH = $(RELEASE)-dist
+OPENTOK_VERSION ?= 2.10.2
+FABRIC_SDK_VERSION ?= 3.10.5
+STRIPE_SDK_VERSION ?= 13.2.0
+COMMIT ?= $(CIRCLE_SHA1)
 
 ifeq ($(PLATFORM),iOS)
-	DESTINATION ?= 'platform=iOS Simulator,name=iPhone 8,OS=$(OS)'
+	DESTINATION ?= 'platform=iOS Simulator,name=$(IPHONE_NAME),OS=$(IOS_VERSION)'
 endif
 
 XCPRETTY :=
@@ -34,7 +39,7 @@ test: bootstrap
 clean:
 	$(XCODEBUILD) clean $(BUILD_FLAGS) $(XCPRETTY)
 
-dependencies: submodules configs secrets opentok
+dependencies: submodules configs secrets opentok fabric stripe
 
 bootstrap: hooks dependencies
 	brew update || brew update
@@ -88,13 +93,35 @@ deploy:
 	@echo "Deploy has been kicked off to CircleCI!"
 
 alpha:
-	@echo "Deploying private/alpha-dist..."
+	@echo "Adding remotes..."
+	@git remote add oss https://github.com/kickstarter/ios-oss
+	@git remote add private https://github.com/kickstarter/ios-private
 
-	@git branch -f alpha-dist private/alpha-dist
-	@git push -f private alpha-dist
-	@git branch -d alpha-dist
+	@echo "Deploying private/alpha-dist-$(COMMIT)..."
+
+	@git branch -f alpha-dist-$(COMMIT)
+	@git push -f private alpha-dist-$(COMMIT)
+	@git branch -d alpha-dist-$(COMMIT)
 
 	@echo "Deploy has been kicked off to CircleCI!"
+
+sync:
+	@echo "Syncing oss and private remotes..."
+
+	@git checkout oss $(BRANCH)
+	@git pull oss $(BRANCH)
+	@git push private $(BRANCH)
+
+	@echo "private and oss remotes are now synced!"
+
+cleanup:
+	@echo "Adding remotes..."
+	@git remote add oss https://github.com/kickstarter/ios-oss
+	@git remote add private https://github.com/kickstarter/ios-private
+
+	@echo "Deleting temporary branch: $(CIRCLE_BRANCH)"
+
+	@git push -d private $(CIRCLE_BRANCH)
 
 lint:
 	swiftlint lint --reporter json --strict
@@ -113,7 +140,6 @@ secrets:
 		|| true; \
 	fi
 
-OPENTOK_VERSION = 2.10.2
 VERSION_FILE = Frameworks/OpenTok/version
 CURRENT_OPENTOK_VERSION = $(shell cat $(VERSION_FILE))
 ifeq ($(CURRENT_OPENTOK_VERSION),)
@@ -133,4 +159,35 @@ opentok:
 		echo "$(OPENTOK_VERSION)" > $(VERSION_FILE); \
 	fi
 
-.PHONY: test-all test clean dependencies submodules deploy lint secrets strings opentok
+fabric:
+	@if [ ! -d Frameworks/Fabric ]; then \
+		echo "Downloading Fabric v$(FABRIC_SDK_VERSION)"; \
+		mkdir -p Frameworks/Fabric; \
+		curl -N -L -o fabric.zip https://s3.amazonaws.com/kits-crashlytics-com/ios/com.twitter.crashlytics.ios/$(FABRIC_SDK_VERSION)/com.crashlytics.ios-manual.zip; \
+		unzip fabric.zip -d Frameworks/Fabric || true; \
+		rm fabric.zip; \
+	fi
+	@if [ -e Frameworks/Fabric/Fabric.framework ]; then \
+		echo "Fabric v$(FABRIC_SDK_VERSION) downloaded"; \
+	else \
+		echo "Failed to download Fabric SDK"; \
+		rm -rf Frameworks/Fabric; \
+	fi
+
+stripe:
+	@if [ ! -d Frameworks/Stripe ]; then \
+		echo "Downloading Stripe SDK v$(STRIPE_SDK_VERSION)"; \
+		mkdir -p Frameworks/Stripe; \
+		curl -N -L -o stripe.zip https://github.com/stripe/stripe-ios/releases/download/v$(STRIPE_SDK_VERSION)/Stripe.framework.zip; \
+		unzip stripe.zip -d Frameworks/Stripe || true; \
+		rm stripe.zip; \
+	fi
+	@if [ -e Frameworks/Stripe/Stripe.framework ]; then \
+		echo "Stripe SDK v$(STRIPE_SDK_VERSION) downloaded"; \
+	else \
+		echo "Failed to download Stripe SDK"; \
+		rm -rf Frameworks/Stripe; \
+	fi
+
+
+.PHONY: test-all test clean dependencies submodules deploy lint secrets strings opentok fabric

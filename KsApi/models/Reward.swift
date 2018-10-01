@@ -10,7 +10,7 @@ public struct Reward {
   public let estimatedDeliveryOn: TimeInterval?
   public let id: Int
   public let limit: Int?
-  public let minimum: Int
+  public let minimum: Double
   public let remaining: Int?
   public let rewardsItems: [RewardsItem]
   public let shipping: Shipping
@@ -49,8 +49,7 @@ public func < (lhs: Reward, rhs: Reward) -> Bool {
 
 extension Reward: Argo.Decodable {
   public static func decode(_ json: JSON) -> Decoded<Reward> {
-    let create = curry(Reward.init)
-    let tmp1 = create
+    let tmp1 = curry(Reward.init)
       <^> json <|? "backers_count"
       <*> (json <| "description" <|> json <| "reward")
       <*> json <|? "ends_at"

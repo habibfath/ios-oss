@@ -36,6 +36,7 @@ internal final class DiscoveryPostcardCell: UITableViewCell, ValueCell {
   @IBOutlet fileprivate weak var projectInfoStackView: UIStackView!
   @IBOutlet fileprivate weak var projectNameAndBlurbLabel: UILabel!
   @IBOutlet fileprivate weak var projectStateSubtitleLabel: UILabel!
+  @IBOutlet fileprivate weak var projectCategoriesStackView: UIStackView!
   @IBOutlet fileprivate weak var projectStateTitleLabel: UILabel!
   @IBOutlet fileprivate weak var projectStateStackView: UIStackView!
   @IBOutlet fileprivate weak var projectStatsStackView: UIStackView!
@@ -44,26 +45,57 @@ internal final class DiscoveryPostcardCell: UITableViewCell, ValueCell {
   @IBOutlet fileprivate weak var socialLabel: UILabel!
   @IBOutlet fileprivate weak var socialStackView: UIStackView!
 
-    internal override func awakeFromNib() {
-    super.awakeFromNib()
+  fileprivate weak var projectCategoryView: DiscoveryProjectCategoryView!
+  fileprivate weak var projectIsStaffPickView: DiscoveryProjectCategoryView!
+
+  private var projectSavedObserver: Any?
+  private var sessionEndedObserver: Any?
+  private var sessionStartedObserver: Any?
+
+  internal override func awakeFromNib() {
+    if let categoryView = DiscoveryProjectCategoryView.fromNib(nib: Nib.DiscoveryProjectCategoryView) {
+      projectCategoryView = categoryView
+
+      projectCategoryView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+      projectCategoryView.setContentHuggingPriority(.required, for: .horizontal)
+
+      projectCategoriesStackView.addArrangedSubview(projectCategoryView)
+    }
+
+    if let staffPickView = DiscoveryProjectCategoryView.fromNib(nib: Nib.DiscoveryProjectCategoryView) {
+      projectIsStaffPickView = staffPickView
+
+      projectIsStaffPickView.setContentCompressionResistancePriority(.required, for: .horizontal)
+      projectIsStaffPickView.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+      projectCategoriesStackView.addArrangedSubview(projectIsStaffPickView)
+    }
 
     self.saveButton.addTarget(self, action: #selector(saveButtonTapped), for: .touchUpInside)
 
-    NotificationCenter.default
+    self.sessionStartedObserver = NotificationCenter.default
       .addObserver(forName: Notification.Name.ksr_sessionStarted, object: nil, queue: nil) { [weak self] _ in
         self?.viewModel.inputs.userSessionStarted()
     }
 
-    NotificationCenter.default
+    self.sessionEndedObserver = NotificationCenter.default
       .addObserver(forName: Notification.Name.ksr_sessionEnded, object: nil, queue: nil) { [weak self] _ in
         self?.viewModel.inputs.userSessionEnded()
     }
 
-    NotificationCenter.default
+    self.projectSavedObserver = NotificationCenter.default
       .addObserver(forName: Notification.Name.ksr_projectSaved, object: nil, queue: nil) { [weak self]
         notification in
         self?.viewModel.inputs.projectFromNotification(project: notification.userInfo?["project"] as? Project)
       }
+
+    super.awakeFromNib()
+  }
+
+  deinit {
+    self.projectSavedObserver.doIfSome(NotificationCenter.default.removeObserver)
+    self.sessionEndedObserver.doIfSome(NotificationCenter.default.removeObserver)
+    self.sessionStartedObserver.doIfSome(NotificationCenter.default.removeObserver)
   }
 
   internal override func bindStyles() {
@@ -71,10 +103,9 @@ internal final class DiscoveryPostcardCell: UITableViewCell, ValueCell {
 
     self.backgroundGradientView.startPoint = .zero
     self.backgroundGradientView.endPoint = CGPoint(x: 0, y: 1)
-    self.backgroundGradientView.setGradient([
-      (UIColor(white: 0, alpha: 0.5), 0),
-      (UIColor(white: 0, alpha: 0), 1)
-      ])
+    let gradient: [(UIColor?, Float)] =  [(UIColor.init(white: 0.0, alpha: 0.5), 0),
+                                          (UIColor.init(white: 0.0, alpha: 0.0), 1)]
+    self.backgroundGradientView.setGradient(gradient)
 
     _ = self
       |> baseTableViewCellStyle()
@@ -168,7 +199,7 @@ internal final class DiscoveryPostcardCell: UITableViewCell, ValueCell {
       |> UIStackView.lens.spacing .~ Styles.grid(1)
       |> UIStackView.lens.layoutMargins
         .~ .init(top: Styles.grid(2), left: Styles.grid(2), bottom: 0.0, right: Styles.grid(2))
-      |> UIStackView.lens.layoutMarginsRelativeArrangement .~ true
+      |> UIStackView.lens.isLayoutMarginsRelativeArrangement .~ true
   }
 
   internal override func bindViewModel() {
@@ -197,6 +228,18 @@ internal final class DiscoveryPostcardCell: UITableViewCell, ValueCell {
     self.socialStackView.rac.hidden = self.viewModel.outputs.socialStackViewHidden
     self.saveButton.rac.selected = self.viewModel.outputs.saveButtonSelected
     self.saveButton.rac.enabled = self.viewModel.outputs.saveButtonEnabled
+    self.projectIsStaffPickView.rac.hidden = viewModel.outputs.projectIsStaffPickLabelHidden
+    self.projectCategoryView.rac.hidden = viewModel.outputs.projectCategoryViewHidden
+    self.projectCategoriesStackView.rac.hidden = viewModel.outputs.projectCategoryStackViewHidden
+
+    projectIsStaffPickView.configureWith(name: Strings.Projects_We_Love(), imageNameString: "icon--small-k")
+
+    viewModel.outputs.projectCategoryName
+      .signal
+      .observeForUI()
+      .observeValues { [weak self] (name) in
+        self?.projectCategoryView.configureWith(name: name, imageNameString: "icon--compass")
+      }
 
     self.viewModel.outputs.metadataIcon
       .observeForUI()
@@ -221,6 +264,12 @@ internal final class DiscoveryPostcardCell: UITableViewCell, ValueCell {
       .skipNil()
       .observeValues { [weak self] url in
         self?.projectImageView.ksr_setImageWithURL(url)
+    }
+
+    self.viewModel.outputs.showNotificationDialog
+      .observeForUI()
+      .observeValues { n in
+        NotificationCenter.default.post(n)
     }
 
     self.viewModel.outputs.socialImageURL
@@ -248,19 +297,25 @@ internal final class DiscoveryPostcardCell: UITableViewCell, ValueCell {
         _self.delegate?.discoveryPostcardCellGoToLoginTout()
     }
 
+    let showCategoriesExperiment =
+      Experiment.Name.showProjectCardCategory.isEnabled(in: AppEnvironment.current)
+
+    self.viewModel.inputs.enableProjectCategoryExperiment(showCategoriesExperiment)
   }
 
-  internal func configureWith(value: Project) {
-    self.viewModel.inputs.configureWith(project: value)
+  internal func configureWith(value: DiscoveryProjectCellRowValue) {
+    self.viewModel.inputs.configureWith(project: value.project, category: value.category)
   }
 
   internal override func layoutSubviews() {
     super.layoutSubviews()
 
-    DispatchQueue.main.async {
-      self.cardView.layer.shadowPath = UIBezierPath.init(rect: self.cardView.bounds).cgPath
-      self.metadataBackgroundView.layer.shadowPath =
-        UIBezierPath.init(rect: self.metadataBackgroundView.bounds).cgPath
+    DispatchQueue.main.async { [weak self] in
+      guard let strongSelf = self else { return }
+
+      strongSelf.cardView.layer.shadowPath = UIBezierPath.init(rect: strongSelf.cardView.bounds).cgPath
+      strongSelf.metadataBackgroundView.layer.shadowPath =
+        UIBezierPath.init(rect: strongSelf.metadataBackgroundView.bounds).cgPath
     }
   }
 

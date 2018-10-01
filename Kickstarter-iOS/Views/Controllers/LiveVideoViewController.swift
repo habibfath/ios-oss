@@ -13,6 +13,8 @@ public protocol LiveVideoViewControllerDelegate: class {
 }
 
 public final class LiveVideoViewController: UIViewController {
+  private var applicationDidEnterBackgroundObserver: Any?
+  private var applicationWillEnterForegroundObserver: Any?
   private var playerController: AVPlayerViewController?
   fileprivate let viewModel: LiveVideoViewModelType = LiveVideoViewModel()
   private var session: OTSession?
@@ -36,6 +38,8 @@ public final class LiveVideoViewController: UIViewController {
     self.subscribers.forEach(self.removeSubscriber(subscriber:))
     self.playerController?.player?.currentItem?.removeObserver(self, forKeyPath: statusKeyPath)
     self.playerController?.player?.replaceCurrentItem(with: nil)
+    self.applicationDidEnterBackgroundObserver.doIfSome(NotificationCenter.default.removeObserver)
+    self.applicationWillEnterForegroundObserver.doIfSome(NotificationCenter.default.removeObserver)
   }
 
   public override func viewDidLoad() {
@@ -44,13 +48,17 @@ public final class LiveVideoViewController: UIViewController {
     self.view.backgroundColor = .ksr_dark_grey_900
     self.view.addSubview(self.videoGridView)
 
-    NotificationCenter.default.addObserver(forName: .UIApplicationDidEnterBackground,
-                                           object: nil, queue: nil) { [weak self] _ in
+    self.applicationDidEnterBackgroundObserver = NotificationCenter.default
+      .addObserver(forName: UIApplication.didEnterBackgroundNotification,
+                   object: nil,
+                   queue: nil) { [weak self] _ in
       self?.viewModel.inputs.didEnterBackground()
     }
 
-    NotificationCenter.default.addObserver(forName: .UIApplicationWillEnterForeground,
-                                           object: nil, queue: nil) { [weak self] _ in
+    self.applicationWillEnterForegroundObserver = NotificationCenter.default
+      .addObserver(forName: UIApplication.willEnterForegroundNotification,
+                   object: nil,
+                   queue: nil) { [weak self] _ in
       self?.viewModel.inputs.willEnterForeground()
     }
 
@@ -141,19 +149,25 @@ public final class LiveVideoViewController: UIViewController {
 
     // Required for audio to play even if phone is set to silent
     do {
-      try AVAudioSession.sharedInstance().setCategory(AVAudioSessionCategoryPlayback, with: [])
+      if #available(iOS 10.0, *) {
+        try AVAudioSession.sharedInstance().setCategory(.playback,
+                                                        mode: .default,
+                                                        options: [])
+      } else {
+        // Apple removed the deprecated method!. Since iOS 12 was release, an idea is to end supporting iOS 9
+      }
     } catch {}
 
     let player = AVPlayer(url: url)
     let controller = AVPlayerViewController()
     controller.player = player
-    controller.videoGravity = AVLayerVideoGravityResizeAspectFill
+    controller.videoGravity = convertToAVLayerVideoGravity(AVLayerVideoGravity.resizeAspectFill.rawValue)
 
     player.currentItem?.addObserver(self, forKeyPath: statusKeyPath, options: .new, context: nil)
 
     self.addVideoView(view: controller.view)
-    self.addChildViewController(controller)
-    controller.didMove(toParentViewController: self)
+    self.addChild(controller)
+    controller.didMove(toParent: self)
 
     controller.player?.play()
 
@@ -267,4 +281,14 @@ extension LiveVideoViewController: OTSubscriberDelegate {
   }
 
   public func subscriberVideoDataReceived(_ subscriber: OTSubscriber) {}
+}
+
+// Helper function inserted by Swift 4.2 migrator.
+private func convertFromAVAudioSessionCategory(_ input: AVAudioSession.Category) -> String {
+	return input.rawValue
+}
+
+// Helper function inserted by Swift 4.2 migrator.
+private func convertToAVLayerVideoGravity(_ input: String) -> AVLayerVideoGravity {
+	return AVLayerVideoGravity(rawValue: input)
 }

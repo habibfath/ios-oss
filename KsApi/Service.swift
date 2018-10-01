@@ -4,7 +4,7 @@ import Prelude
 import ReactiveExtensions
 import ReactiveSwift
 
-private extension Bundle {
+public extension Bundle {
   var _buildVersion: String {
     return (self.infoDictionary?["CFBundleVersion"] as? String) ?? "1"
   }
@@ -102,6 +102,15 @@ public struct Service: ServiceType {
       return request(.deleteVideo(video, fromDraft: draft))
   }
 
+  public func exportData() -> SignalProducer<VoidEnvelope, ErrorEnvelope> {
+    return request(.exportData)
+  }
+
+  public func exportDataState()
+    -> SignalProducer<ExportDataEnvelope, ErrorEnvelope> {
+    return request(.exportDataState)
+  }
+
   public func previewUrl(forDraft draft: UpdateDraft) -> URL? {
     return self.serverConfig.apiBaseUrl
       .appendingPathComponent("/v1/projects/\(draft.update.projectId)/updates/draft/preview")
@@ -182,7 +191,7 @@ public struct Service: ServiceType {
   }
 
   public func fetchGraphCategory(query: NonEmptySet<Query>)
-    -> SignalProducer<RootCategoriesEnvelope.Category, GraphError> {
+    -> SignalProducer<CategoryEnvelope, GraphError> {
       return fetch(query: query)
   }
 
@@ -292,6 +301,11 @@ public struct Service: ServiceType {
     return request(.unansweredSurveyResponses)
   }
 
+  public func backingUpdate(forProject project: Project, forUser user: User, received: Bool) ->
+    SignalProducer<Backing, ErrorEnvelope> {
+    return request(.backingUpdate(projectId: project.id, backerId: user.id, received: received))
+  }
+
   public func followAllFriends() -> SignalProducer<VoidEnvelope, ErrorEnvelope> {
     return request(.followAllFriends)
   }
@@ -342,9 +356,7 @@ public struct Service: ServiceType {
       return request(.facebookLogin(facebookAccessToken: facebookAccessToken, code: code))
   }
 
-  public func markAsRead(messageThread: MessageThread)
-    -> SignalProducer<MessageThread, ErrorEnvelope> {
-
+  public func markAsRead(messageThread: MessageThread) -> SignalProducer<MessageThread, ErrorEnvelope> {
       return request(.markAsRead(messageThread))
   }
 
@@ -527,7 +539,9 @@ public struct Service: ServiceType {
         }
         observer.sendCompleted()
       }
-      disposable.add(task.cancel)
+      disposable.observeEnded {
+        task.cancel()
+      }
       task.resume()
     }
   }

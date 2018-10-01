@@ -11,7 +11,7 @@ internal protocol FirebaseDataSnapshotType {
 // Returns an empty array if any snapshot decodings fail
 internal extension Collection where Iterator.Element == LiveStreamChatMessage {
   static func decode(_ snapshots: [FirebaseDataSnapshotType]) -> Decoded<[LiveStreamChatMessage]> {
-    return .success(snapshots.flatMap { snapshot in
+    return .success(snapshots.compactMap { snapshot in
       LiveStreamChatMessage.decode(snapshot).value
     })
   }
@@ -37,9 +37,8 @@ public struct LiveStreamChatMessage {
 
 extension LiveStreamChatMessage: Argo.Decodable {
   static public func decode(_ json: JSON) -> Decoded<LiveStreamChatMessage> {
-    let create = curry(LiveStreamChatMessage.init)
 
-    let tmp1 = create
+    let tmp1 = curry(LiveStreamChatMessage.init)
       <^> json <| "timestamp"
       <*> json <| "id"
       <*> json <|? "creator"

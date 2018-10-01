@@ -20,7 +20,7 @@ internal final class NoRewardCell: UITableViewCell, ValueCell {
 
     _ = self
       |> baseTableViewCellStyle()
-      |> NoRewardCell.lens.accessibilityTraits .~ UIAccessibilityTraitButton
+      |> NoRewardCell.lens.accessibilityTraits .~ UIAccessibilityTraits.button.rawValue
       |> (NoRewardCell.lens.contentView..UIView.lens.layoutMargins) %~~ { _, cell in
         cell.traitCollection.isRegularRegular
           ? .init(top: Styles.grid(1), left: Styles.grid(16), bottom: Styles.grid(2), right: Styles.grid(16))
@@ -35,8 +35,8 @@ internal final class NoRewardCell: UITableViewCell, ValueCell {
     _ = self.pledgeButton
       |> greenButtonStyle
       |> UIButton.lens.layer.cornerRadius .~ 0
-      |> UIButton.lens.userInteractionEnabled .~ false
-      |> UIButton.lens.title(forState: .normal) %~ { _ in Strings.Pledge_without_a_reward() }
+      |> UIButton.lens.isUserInteractionEnabled .~ false
+      |> UIButton.lens.title(for: .normal) %~ { _ in Strings.Pledge_without_a_reward() }
       |> UIButton.lens.isAccessibilityElement .~ false
       |> UIButton.lens.accessibilityElementsHidden .~ true
 
@@ -55,11 +55,11 @@ internal final class NoRewardCell: UITableViewCell, ValueCell {
       |> UIStackView.lens.spacing .~ Styles.grid(3)
       |> UIStackView.lens.layoutMargins .~
         .init(top: Styles.grid(4), left: Styles.grid(2), bottom: Styles.grid(2), right: Styles.grid(2))
-      |> UIStackView.lens.layoutMarginsRelativeArrangement .~ true
+      |> UIStackView.lens.isLayoutMarginsRelativeArrangement .~ true
 
     _ = self.copyStackView
       |> UIStackView.lens.spacing .~ Styles.grid(3)
       |> UIStackView.lens.layoutMargins .~ .init(topBottom: 0, leftRight: Styles.grid(2))
-      |> UIStackView.lens.layoutMarginsRelativeArrangement .~ true
+      |> UIStackView.lens.isLayoutMarginsRelativeArrangement .~ true
   }
 }

@@ -18,8 +18,8 @@ internal final class DiscoveryViewController: UIViewController {
   override func viewDidLoad() {
     super.viewDidLoad()
 
-    self.pageViewController = self.childViewControllers
-      .flatMap { $0 as? UIPageViewController }.first
+    self.pageViewController = self.children
+      .compactMap { $0 as? UIPageViewController }.first
     self.pageViewController.setViewControllers(
       [.init()],
       direction: .forward,
@@ -28,16 +28,16 @@ internal final class DiscoveryViewController: UIViewController {
     )
     self.pageViewController.delegate = self
 
-    self.sortPagerViewController = self.childViewControllers
-      .flatMap { $0 as? SortPagerViewController }.first
+    self.sortPagerViewController = self.children
+      .compactMap { $0 as? SortPagerViewController }.first
     self.sortPagerViewController.delegate = self
 
-    self.navigationHeaderViewController = self.childViewControllers
-      .flatMap { $0 as? DiscoveryNavigationHeaderViewController }.first
+    self.navigationHeaderViewController = self.children
+      .compactMap { $0 as? DiscoveryNavigationHeaderViewController }.first
     self.navigationHeaderViewController.delegate = self
 
-    self.liveStreamDiscoveryViewController = self.childViewControllers
-      .flatMap { $0 as? LiveStreamDiscoveryViewController }.first
+    self.liveStreamDiscoveryViewController = self.children
+      .compactMap { $0 as? LiveStreamDiscoveryViewController }.first
 
     self.viewModel.inputs.viewDidLoad()
   }
@@ -107,6 +107,7 @@ internal final class DiscoveryViewController: UIViewController {
       .observeForUI()
       .observeValues { [weak self] in
         self?.sortPagerViewController.setSortPagerEnabled($0)
+        self?.setPageViewControllerScrollEnabled($0)
     }
 
     self.viewModel.outputs.updateSortPagerStyle
@@ -135,6 +136,10 @@ internal final class DiscoveryViewController: UIViewController {
         completion: nil
       )
     }
+  }
+
+  private func setPageViewControllerScrollEnabled(_ enabled: Bool) {
+    self.pageViewController.dataSource = enabled == false ? nil : self.dataSource
   }
 }
 

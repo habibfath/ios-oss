@@ -23,6 +23,7 @@ internal struct MockService: ServiceType {
   fileprivate let fetchActivitiesError: ErrorEnvelope?
 
   fileprivate let fetchBackingResponse: Backing
+  fileprivate let backingUpdate: Backing
 
   fileprivate let fetchGraphCategoriesResponse: RootCategoriesEnvelope?
 
@@ -42,6 +43,11 @@ internal struct MockService: ServiceType {
 
   fileprivate let fetchFriendStatsResponse: FriendStatsEnvelope?
   fileprivate let fetchFriendStatsError: ErrorEnvelope?
+
+  fileprivate let fetchExportStateResponse: ExportDataEnvelope?
+  fileprivate let fetchExportStateError: ErrorEnvelope?
+
+  fileprivate let exportDataError: ErrorEnvelope?
 
   fileprivate let fetchDraftResponse: UpdateDraft?
   fileprivate let fetchDraftError: ErrorEnvelope?
@@ -157,6 +163,7 @@ internal struct MockService: ServiceType {
                 fetchActivitiesResponse: [Activity]? = nil,
                 fetchActivitiesError: ErrorEnvelope? = nil,
                 fetchBackingResponse: Backing = .template,
+                backingUpdate: Backing = .template,
                 fetchGraphCategoriesResponse: RootCategoriesEnvelope? = nil,
                 fetchCheckoutResponse: CheckoutEnvelope? = nil,
                 fetchCheckoutError: ErrorEnvelope? = nil,
@@ -169,6 +176,9 @@ internal struct MockService: ServiceType {
                 fetchFriendsError: ErrorEnvelope? = nil,
                 fetchFriendStatsResponse: FriendStatsEnvelope? = nil,
                 fetchFriendStatsError: ErrorEnvelope? = nil,
+                fetchExportStateResponse: ExportDataEnvelope? = nil,
+                fetchExportStateError: ErrorEnvelope? = nil,
+                exportDataError: ErrorEnvelope? = nil,
                 fetchDraftResponse: UpdateDraft? = nil,
                 fetchDraftError: ErrorEnvelope? = nil,
                 addAttachmentResponse: UpdateDraft.Image? = nil,
@@ -245,6 +255,8 @@ internal struct MockService: ServiceType {
 
     self.fetchBackingResponse = fetchBackingResponse
 
+    self.backingUpdate = backingUpdate
+
     self.fetchGraphCategoriesResponse = fetchGraphCategoriesResponse ?? (.template
       |> RootCategoriesEnvelope.lens.categories .~ [
         .art,
@@ -274,6 +286,11 @@ internal struct MockService: ServiceType {
 
     self.fetchFriendStatsResponse = fetchFriendStatsResponse
     self.fetchFriendStatsError = fetchFriendStatsError
+
+    self.fetchExportStateResponse = fetchExportStateResponse
+    self.fetchExportStateError = fetchExportStateError
+
+    self.exportDataError = exportDataError
 
     self.fetchDraftResponse = fetchDraftResponse
     self.fetchDraftError = fetchDraftError
@@ -502,6 +519,13 @@ internal struct MockService: ServiceType {
     return SignalProducer(value: VoidEnvelope())
   }
 
+  internal func exportData() -> SignalProducer<VoidEnvelope, ErrorEnvelope> {
+    if let error = exportDataError {
+      return SignalProducer(error: error)
+    }
+    return SignalProducer(value: VoidEnvelope())
+  }
+
   internal func followFriend(userId id: Int) -> SignalProducer<User, ErrorEnvelope> {
     if let error = followFriendError {
       return SignalProducer(error: error)
@@ -523,8 +547,8 @@ internal struct MockService: ServiceType {
   }
 
   internal func fetchGraphCategory(query: NonEmptySet<Query>)
-    -> SignalProducer<RootCategoriesEnvelope.Category, GraphError> {
-    return SignalProducer(value: .template |> RootCategoriesEnvelope.Category.lens.id .~ "\(query.head)")
+    -> SignalProducer<CategoryEnvelope, GraphError> {
+      return SignalProducer(value: CategoryEnvelope(node: .template |> Category.lens.id .~ "\(query.head)"))
   }
 
   internal func fetchGraph<A>(query: NonEmptySet<Query>) -> SignalProducer<A, GraphError> where A: Decodable {
@@ -580,6 +604,18 @@ internal struct MockService: ServiceType {
         |> Backing.lens.backerId .~ user.id
         |> Backing.lens.projectId .~ project.id
     )
+  }
+
+  func backingUpdate(forProject project: Project, forUser user: User, received: Bool)
+    -> SignalProducer<Backing, ErrorEnvelope> {
+
+      return SignalProducer(
+        value: fetchBackingResponse
+          |> Backing.lens.backer .~ user
+          |> Backing.lens.backerId .~ user.id
+          |> Backing.lens.projectId .~ project.id
+          |> Backing.lens.backerCompleted .~ received
+      )
   }
 
   internal func fetchDiscovery(paginationUrl: String)
@@ -885,10 +921,10 @@ internal struct MockService: ServiceType {
   }
 
   internal func fetchCategory(param: Param)
-    -> SignalProducer<KsApi.RootCategoriesEnvelope.Category, GraphError> {
+    -> SignalProducer<KsApi.Category, GraphError> {
     switch param {
     case let .id(id):
-      return SignalProducer(value: .template |> RootCategoriesEnvelope.Category.lens.id .~ "\(id)")
+      return SignalProducer(value: .template |> Category.lens.id .~ "\(id)")
     default:
       return .empty
       }
@@ -996,6 +1032,15 @@ internal struct MockService: ServiceType {
 
   func register(pushToken: String) -> SignalProducer<VoidEnvelope, ErrorEnvelope> {
     return SignalProducer(value: VoidEnvelope())
+  }
+
+  func exportDataState() -> SignalProducer<ExportDataEnvelope, ErrorEnvelope> {
+    if let response = fetchExportStateResponse {
+      return SignalProducer(value: response)
+    } else if let error = fetchExportStateError {
+      return SignalProducer(error: error)
+    }
+    return SignalProducer(value: .template)
   }
 
   internal func searchMessages(query: String, project: Project?)
@@ -1210,6 +1255,9 @@ private extension MockService {
           fetchFriendsError: $1.fetchFriendsError,
           fetchFriendStatsResponse: $1.fetchFriendStatsResponse,
           fetchFriendStatsError: $1.fetchFriendStatsError,
+          fetchExportStateResponse: $1.fetchExportStateResponse,
+          fetchExportStateError: $1.fetchExportStateError,
+          exportDataError: $1.exportDataError,
           fetchDraftResponse: $1.fetchDraftResponse,
           fetchDraftError: $1.fetchDraftError,
           addAttachmentResponse: $1.addAttachmentResponse,

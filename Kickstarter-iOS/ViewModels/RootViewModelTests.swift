@@ -57,7 +57,7 @@ final class RootViewModelTests: TestCase {
     viewControllerNames.assertValues(
       [
         ["Discovery", "Activities", "Search", "LoginTout"],
-        ["Discovery", "Activities", "Search", "Profile"]
+        ["Discovery", "Activities", "Search", "BackerDashboard"]
       ],
       "Show the logged in tabs."
     )
@@ -68,8 +68,8 @@ final class RootViewModelTests: TestCase {
     viewControllerNames.assertValues(
       [
         ["Discovery", "Activities", "Search", "LoginTout"],
-        ["Discovery", "Activities", "Search", "Profile"],
-        ["Discovery", "Activities", "Search", "Dashboard", "Profile"]
+        ["Discovery", "Activities", "Search", "BackerDashboard"],
+        ["Discovery", "Activities", "Search", "Dashboard", "BackerDashboard"]
       ],
       "Show the creator dashboard tab."
     )
@@ -80,8 +80,8 @@ final class RootViewModelTests: TestCase {
     viewControllerNames.assertValues(
       [
         ["Discovery", "Activities", "Search", "LoginTout"],
-        ["Discovery", "Activities", "Search", "Profile"],
-        ["Discovery", "Activities", "Search", "Dashboard", "Profile"],
+        ["Discovery", "Activities", "Search", "BackerDashboard"],
+        ["Discovery", "Activities", "Search", "Dashboard", "BackerDashboard"],
         ["Discovery", "Activities", "Search", "LoginTout"],
       ],
       "Show the logged out tabs."
@@ -131,6 +131,22 @@ final class RootViewModelTests: TestCase {
     self.vm.inputs.currentUserUpdated()
 
     self.viewControllerNames.assertValueCount(1)
+  }
+
+  func testUpdateCurrentLanguage() {
+    let viewControllerNames = TestObserver<[String], NoError>()
+    vm.outputs.setViewControllers.map(extractRootNames)
+      .observe(viewControllerNames.observer)
+
+    self.vm.inputs.viewDidLoad()
+
+    self.viewControllerNames.assertValueCount(1)
+    self.tabBarItemsData.assertValueCount(1)
+
+    self.vm.inputs.currentLanguageChanged()
+
+    self.viewControllerNames.assertValueCount(2)
+    self.tabBarItemsData.assertValueCount(2)
   }
 
   func testSelectedIndex() {
@@ -309,7 +325,7 @@ final class RootViewModelTests: TestCase {
 }
 
 private func extractRootNames(_ vcs: [UIViewController]) -> [String] {
-  return vcs.flatMap(extractRootName)
+  return vcs.compactMap(extractRootName)
 }
 
 private func extractRootName(_ vc: UIViewController) -> String? {

@@ -100,12 +100,10 @@ internal final class LiveStreamDiscoveryLiveNowCell: UITableViewCell, ValueCell 
 
     self.topGradientView.startPoint = .init(x: 0, y: 0)
     self.topGradientView.endPoint = .init(x: 0, y: 1)
-    self.topGradientView.setGradient(
-      [
-        (UIColor.black.withAlphaComponent(0.6), 0),
-        (UIColor.black.withAlphaComponent(0), 1)
-      ]
-    )
+
+    let gradient: [(UIColor?, Float)] =  [(UIColor.black.withAlphaComponent(0.6), 0),
+                                          (UIColor.black.withAlphaComponent(0), 1)]
+    self.topGradientView.setGradient(gradient)
   }
 
   internal override func bindViewModel() {
@@ -140,7 +138,7 @@ internal final class LiveStreamDiscoveryLiveNowCell: UITableViewCell, ValueCell 
     self.streamPlayerView.playerLayer?.player = url.map(AVPlayer.init(url:))
     self.streamPlayerView.playerLayer?.player?.play()
     self.streamPlayerView.playerLayer?.player?.isMuted = true
-    self.streamPlayerView.playerLayer?.videoGravity = AVLayerVideoGravityResizeAspectFill
+    self.streamPlayerView.playerLayer?.videoGravity = AVLayerVideoGravity.resizeAspectFill
     self.streamPlayerView.backgroundColor = .black
 
     UIView.animate(withDuration: 0.3) {

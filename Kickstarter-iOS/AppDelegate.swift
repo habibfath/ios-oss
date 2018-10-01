@@ -1,3 +1,5 @@
+import Crashlytics
+import Fabric
 import FBSDKCoreKit
 import Foundation
 import HockeySDK
@@ -28,14 +30,14 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
 
   func application(
     _ application: UIApplication,
-    didFinishLaunchingWithOptions launchOptions: [UIApplicationLaunchOptionsKey: Any]?) -> Bool {
+    didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
 
     UIView.doBadSwizzleStuff()
     UIViewController.doBadSwizzleStuff()
 
     AppEnvironment.replaceCurrentEnvironment(
       AppEnvironment.fromStorage(
-        ubiquitousStore: NSUbiquitousKeyValueStore.default(),
+        ubiquitousStore: NSUbiquitousKeyValueStore.default,
         userDefaults: UserDefaults.standard
       )
     )
@@ -153,6 +155,12 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
           }
       }
 
+    self.viewModel.outputs.showAlert
+      .observeForUI()
+      .observeValues { [weak self] in
+        self?.presentContextualPermissionAlert($0)
+    }
+
     self.viewModel.outputs.unregisterForRemoteNotifications
       .observeForUI()
       .observeValues(UIApplication.shared.unregisterForRemoteNotifications)
@@ -170,13 +178,21 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
         let manager = BITHockeyManager.shared()
         manager.delegate = _self
         manager.configure(withIdentifier: data.appIdentifier)
-        manager.crashManager.crashManagerStatus = .autoSend
+        manager.crashManager.crashManagerStatus = .disabled
         manager.isUpdateManagerDisabled = data.disableUpdates
         manager.userID = data.userId
         manager.userName = data.userName
         manager.start()
         manager.authenticator.authenticateInstallation()
     }
+
+    #if RELEASE || HOCKEY
+    self.viewModel.outputs.configureFabric
+      .observeForUI()
+      .observeValues {
+        Fabric.with([Crashlytics.self])
+    }
+    #endif
 
     self.viewModel.outputs.synchronizeUbiquitousStore
       .observeForUI()
@@ -194,15 +210,23 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
       .observeForUI()
       .observeValues { [weak self] in self?.findRedirectUrl($0) }
 
+    //swiftlint:disable discarded_notification_center_observer
     NotificationCenter.default
       .addObserver(forName: Notification.Name.ksr_sessionStarted, object: nil, queue: nil) { [weak self] _ in
         self?.viewModel.inputs.userSessionStarted()
     }
 
     NotificationCenter.default
+      .addObserver(
+        forName: Notification.Name.ksr_showNotificationsDialog, object: nil, queue: nil) { [weak self] in
+        self?.viewModel.inputs.showNotificationDialog(notification: $0)
+    }
+
+    NotificationCenter.default
       .addObserver(forName: Notification.Name.ksr_sessionEnded, object: nil, queue: nil) { [weak self] _ in
         self?.viewModel.inputs.userSessionEnded()
     }
+    //swiftlint:enable discarded_notification_center_observer
 
     self.window?.tintColor = .ksr_dark_grey_500
 
@@ -222,9 +246,19 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
 
   func application(_ application: UIApplication,
                    continue userActivity: NSUserActivity,
-                   restorationHandler: @escaping ([Any]?) -> Void) -> Bool {
+                   restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
 
     return self.viewModel.inputs.applicationContinueUserActivity(userActivity)
+  }
+
+  func application(_ app: UIApplication, open url: URL,
+                   options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+    guard let sourceApplication = options[.sourceApplication] as? String else { return false }
+
+    return self.viewModel.inputs.applicationOpenUrl(application: app,
+                                                    url: url,
+                                                    sourceApplication: sourceApplication,
+                                                    annotation: options[.annotation] as Any)
   }
 
   func application(_ application: UIApplication,
@@ -249,7 +283,6 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
     self.viewModel.inputs.didReceive(remoteNotification: userInfo,
                                      applicationIsActive: application.applicationState == .active)
   }
-
   internal func application(_ application: UIApplication,
                             didReceive notification: UILocalNotification) {
 
@@ -269,6 +302,35 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
 
     self.viewModel.inputs.applicationPerformActionForShortcutItem(shortcutItem)
     completionHandler(true)
+  }
+
+  fileprivate func presentContextualPermissionAlert(_ notification: Notification) {
+
+    guard let context = notification.userInfo?.values.first as? PushNotificationDialog.Context else {
+      return
+    }
+
+    let alert = UIAlertController(title: context.title, message: context.message, preferredStyle: .alert)
+
+    alert.addAction(
+      UIAlertAction(title: Strings.project_star_ok(), style: .default) { [weak self] _ in
+        self?.viewModel.inputs.didAcceptReceivingRemoteNotifications()
+      }
+    )
+
+    alert.addAction(
+      UIAlertAction(title: PushNotificationDialog.titleForDismissal, style: .cancel, handler: { _ in
+        PushNotificationDialog.didDenyAccess(for: context)
+      })
+    )
+
+    DispatchQueue.main.async {
+      if let viewController = notification.userInfo?[UserInfoKeys.viewController] as? UIViewController {
+        viewController.present(alert, animated: true, completion: nil)
+      } else {
+        self.rootTabBarController?.present(alert, animated: true, completion: nil)
+      }
+    }
   }
 
   fileprivate func presentRemoteNotificationAlert(_ message: String) {

@@ -24,11 +24,11 @@ internal final class DashboardTitleView: UIView {
     _ = self.titleButton
       |> UIButton.lens.contentEdgeInsets %~ { insets in .init(topBottom: insets.top, leftRight: 0) }
       |> UIButton.lens.accessibilityLabel %~ { _ in Strings.tabbar_dashboard() }
-      |> UIButton.lens.accessibilityTraits .~ UIAccessibilityTraitStaticText
+      |> UIButton.lens.accessibilityTraits .~ UIAccessibilityTraits.staticText.rawValue
       |> UIButton.lens.targets .~ [(self, #selector(titleButtonTapped), .touchUpInside)]
 
     _ = self.arrowImageView
-      |> UIImageView.lens.hidden .~ true
+      |> UIImageView.lens.isHidden .~ true
       |> UIImageView.lens.tintColor .~ .ksr_dark_grey_900
 
     _ = self.titleLabel |> dashboardTitleViewTextDisabledStyle
@@ -46,7 +46,7 @@ internal final class DashboardTitleView: UIView {
           _self.arrowImageView.isHidden = hide
         }
         if !hide {
-          _ = _self.titleButton |> UIView.lens.accessibilityTraits .~ UIAccessibilityTraitButton
+          _ = _self.titleButton |> UIView.lens.accessibilityTraits .~ UIAccessibilityTraits.button.rawValue
         }
     }
 

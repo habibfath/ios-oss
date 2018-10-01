@@ -23,6 +23,9 @@ internal protocol RootViewModelInputs {
   /// Call when the controller has received a user updated notification.
   func currentUserUpdated()
 
+  /// Call when the language selection has changed
+  func currentLanguageChanged()
+
   /// Call when selected tab bar index changes.
   func didSelectIndex(_ index: Int)
 
@@ -95,30 +98,27 @@ internal final class RootViewModel: RootViewModelType, RootViewModelInputs, Root
       .map { ($0 != nil, ($0?.stats.memberProjectsCount ?? 0) > 0) }
       .skipRepeats(==)
 
-    let standardViewControllers = self.viewDidLoadProperty.signal
-      .map { _ in
-        [
-          DiscoveryViewController.instantiate(),
-          ActivitiesViewController.instantiate(),
-          SearchViewController.instantiate()
-        ]
-      }
-
-    let personalizedViewControllers = userState
-      .map { user in
-        [
-          user.isMember    ? DashboardViewController.instantiate() as UIViewController? : nil,
-          !user.isLoggedIn
-            ? LoginToutViewController.configuredWith(loginIntent: .generic) as UIViewController? : nil,
-          user.isLoggedIn  ? profileController() : nil
-        ]
-      }
+    let standardViewControllers = self.viewDidLoadProperty.signal.map { generateStandardViewControllers() }
+    let personalizedViewControllers = userState.map { generatePersonalizedViewControllers(userState: $0) }
       .map { $0.compact() }
 
     let viewControllers = Signal.combineLatest(standardViewControllers, personalizedViewControllers).map(+)
 
-    self.setViewControllers = viewControllers
-      .map { $0.map(UINavigationController.init(rootViewController:)) }
+    let refreshedViewControllers = userState.takeWhen(self.currentLanguageProperty.signal)
+      .map { userState -> [UIViewController?] in
+        let standard = generateStandardViewControllers()
+        let personalized = generatePersonalizedViewControllers(userState: userState)
+
+        return [standard, personalized].flatMap { $0 }
+      }
+      .map { $0.compact() }
+
+    self.setViewControllers = Signal.merge(
+      viewControllers,
+      refreshedViewControllers
+    ).map {
+        $0.map(UINavigationController.init(rootViewController:))
+    }
 
     let loginState = userState.map { $0.isLoggedIn }
     let vcCount = self.setViewControllers.map { $0.count }
@@ -177,7 +177,10 @@ internal final class RootViewModel: RootViewModelType, RootViewModelInputs, Root
       .takePairWhen(selectedTabAgain)
       .map { vcs, idx in vcs[idx] }
 
-    self.tabBarItemsData = Signal.combineLatest(currentUser, self.viewDidLoadProperty.signal)
+    self.tabBarItemsData = Signal.combineLatest(currentUser, .merge(
+      self.viewDidLoadProperty.signal,
+      self.currentLanguageProperty.signal.ignoreValues())
+      )
       .map(first)
       .map(tabData(forUser:))
   }
@@ -186,11 +189,17 @@ internal final class RootViewModel: RootViewModelType, RootViewModelInputs, Root
   internal func currentUserUpdated() {
     self.currentUserUpdatedProperty.value = ()
   }
+
+  fileprivate let currentLanguageProperty = MutableProperty(())
+  internal func currentLanguageChanged() {
+    self.currentLanguageProperty.value = ()
+  }
+
   fileprivate let didSelectIndexProperty = MutableProperty(0)
   internal func didSelectIndex(_ index: Int) {
     self.didSelectIndexProperty.value = index
   }
-  fileprivate let switchToActivitiesProperty = MutableProperty()
+  fileprivate let switchToActivitiesProperty = MutableProperty(())
   internal func switchToActivities() {
     self.switchToActivitiesProperty.value = ()
   }
@@ -202,28 +211,28 @@ internal final class RootViewModel: RootViewModelType, RootViewModelInputs, Root
   internal func switchToDiscovery(params: DiscoveryParams?) {
     self.switchToDiscoveryProperty.value = params
   }
-  fileprivate let switchToLoginProperty = MutableProperty()
+  fileprivate let switchToLoginProperty = MutableProperty(())
   internal func switchToLogin() {
     self.switchToLoginProperty.value = ()
   }
-  fileprivate let switchToProfileProperty = MutableProperty()
+  fileprivate let switchToProfileProperty = MutableProperty(())
   internal func switchToProfile() {
     self.switchToProfileProperty.value = ()
   }
-  fileprivate let switchToSearchProperty = MutableProperty()
+  fileprivate let switchToSearchProperty = MutableProperty(())
   internal func switchToSearch() {
     self.switchToSearchProperty.value = ()
   }
-  fileprivate let userSessionStartedProperty = MutableProperty<()>()
+  fileprivate let userSessionStartedProperty = MutableProperty(())
   internal func userSessionStarted() {
     self.userSessionStartedProperty.value = ()
   }
-  fileprivate let userSessionEndedProperty = MutableProperty<()>()
+  fileprivate let userSessionEndedProperty = MutableProperty(())
   internal func userSessionEnded() {
     self.userSessionEndedProperty.value = ()
   }
 
-  fileprivate let viewDidLoadProperty = MutableProperty<()>()
+  fileprivate let viewDidLoadProperty = MutableProperty(())
   internal func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
   }
@@ -237,6 +246,24 @@ internal final class RootViewModel: RootViewModelType, RootViewModelInputs, Root
 
   internal var inputs: RootViewModelInputs { return self }
   internal var outputs: RootViewModelOutputs { return self }
+}
+
+private func generateStandardViewControllers() -> [UIViewController] {
+  return [
+    DiscoveryViewController.instantiate(),
+    ActivitiesViewController.instantiate(),
+    SearchViewController.instantiate()
+  ]
+}
+
+private func generatePersonalizedViewControllers(userState: (isMember: Bool, isLoggedIn: Bool))
+  -> [UIViewController?] {
+  let dashboardViewController: UIViewController? = userState.isMember
+    ? DashboardViewController.instantiate() : nil
+  let loginProfileViewController: UIViewController = userState.isLoggedIn
+    ? profileController() : LoginToutViewController.configuredWith(loginIntent: .generic)
+
+  return [dashboardViewController, loginProfileViewController]
 }
 
 private func tabData(forUser user: User?) -> TabBarItemsData {
@@ -289,8 +316,6 @@ private func first<VC: UIViewController>(_ viewController: VC.Type) -> ([UIViewC
 }
 
 private func profileController() -> UIViewController {
-  let showDash = AppEnvironment.current.config?.features["ios_backer_dashboard"] == .some(true)
-  return showDash
-    ? BackerDashboardViewController.instantiate()
-    : ProfileViewController.instantiate()
+
+  return BackerDashboardViewController.instantiate()
 }

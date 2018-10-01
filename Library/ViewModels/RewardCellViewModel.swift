@@ -46,15 +46,19 @@ public final class RewardCellViewModel: RewardCellViewModelType, RewardCellViewM
 RewardCellViewModelOutputs {
 
   public init() {
-    let projectAndRewardOrBacking = self.projectAndRewardOrBackingProperty.signal.skipNil()
-    let project = projectAndRewardOrBacking.map(first)
-    let reward = projectAndRewardOrBacking
+    let projectAndRewardOrBacking: Signal<(Project, Either<Reward, Backing>), NoError> =
+      self.projectAndRewardOrBackingProperty.signal.skipNil()
+
+    let project: Signal<Project, NoError> = projectAndRewardOrBacking.map(first)
+
+    let reward: Signal<Reward, NoError> = projectAndRewardOrBacking
       .map { project, rewardOrBacking -> Reward in
         rewardOrBacking.left
           ?? rewardOrBacking.right?.reward
           ?? backingReward(fromProject: project)
           ?? Reward.noReward
     }
+
     let projectAndReward = Signal.zip(project, reward)
 
     self.conversionLabelHidden = project.map(needsConversion(project:) >>> negate)
@@ -86,7 +90,8 @@ RewardCellViewModelOutputs {
             : currency
 
         case let .right(backing):
-          return Format.currency(backing.amount, country: project.country)
+          let backingAmount = formattedAmount(for: backing)
+          return Format.formattedCurrency(backingAmount, country: project.country)
         }
     }
 
@@ -235,7 +240,7 @@ RewardCellViewModelOutputs {
   }
   // swiftlint:enable function_body_length
 
-  private let boundStylesProperty = MutableProperty()
+  private let boundStylesProperty = MutableProperty(())
   public func boundStyles() {
     self.boundStylesProperty.value = ()
   }
@@ -245,7 +250,7 @@ RewardCellViewModelOutputs {
     self.projectAndRewardOrBackingProperty.value = (project, rewardOrBacking)
   }
 
-  private let tappedProperty = MutableProperty()
+  private let tappedProperty = MutableProperty(())
   public func tapped() {
     self.tappedProperty.value = ()
   }
@@ -283,11 +288,11 @@ RewardCellViewModelOutputs {
 private func minimumRewardAmountTextColor(project: Project, reward: Reward) -> UIColor {
   if project.state != .successful && project.state != .live && reward.remaining == 0 {
     return .ksr_text_dark_grey_500
-  } else if (project.state == .live && reward.remaining == 0 &&
-    userIsBacking(reward: reward, inProject: project)) {
+  } else if project.state == .live && reward.remaining == 0 &&
+    userIsBacking(reward: reward, inProject: project) {
     return .ksr_green_700
-  } else if (project.state != .live && reward.remaining == 0 &&
-    userIsBacking(reward: reward, inProject: project)) {
+  } else if project.state != .live && reward.remaining == 0 &&
+    userIsBacking(reward: reward, inProject: project) {
     return .ksr_text_dark_grey_500
   } else if (project.state == .live && reward.remaining == 0) ||
     (project.state != .live && reward.remaining == 0) {
@@ -366,6 +371,14 @@ private func footerString(project: Project, reward: Reward) -> String {
   return parts
     .map { part in part.nonBreakingSpaced() }
     .joined(separator: " • ")
+}
+
+private func formattedAmount(for backing: Backing) -> String {
+  let amount = backing.amount
+  let backingAmount = floor(amount) == backing.amount
+    ? String(Int(amount))
+    : String(format: "%.2f", backing.amount)
+  return backingAmount
 }
 
 private func shouldCollapse(reward: Reward, forProject project: Project) -> Bool {

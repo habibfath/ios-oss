@@ -1,10 +1,10 @@
 import UIKit
 
 internal enum Device {
-  case phone4inch
-  case phone4_7inch
-  case phone5_5inch
-  case phone5_8inch
+  case phone4inch   // iPhone SE
+  case phone4_7inch // iPhone 8, 7, 6S
+  case phone5_5inch // iPhone 8 Plus, 7 Plus, 6S Plus
+  case phone5_8inch // iPhone X
   case pad
 }
 
@@ -22,7 +22,7 @@ internal func traitControllers(device: Device = .phone4_7inch,
   -> (parent: UIViewController, child: UIViewController) {
 
     let parent = UIViewController()
-    parent.addChildViewController(child)
+    parent.addChild(child)
     parent.view.addSubview(child.view)
 
     child.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -107,7 +107,7 @@ internal func traitControllers(device: Device = .phone4_7inch,
     child.view.backgroundColor = .white
 
     let allTraits = UITraitCollection.init(traitsFrom: [traits, additionalTraits])
-    parent.setOverrideTraitCollection(allTraits, forChildViewController: child)
+    parent.setOverrideTraitCollection(allTraits, forChild: child)
 
     if handleAppearanceTransition {
       parent.beginAppearanceTransition(true, animated: false)

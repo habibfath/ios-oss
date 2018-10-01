@@ -10,8 +10,11 @@ extension User {
     liveAuthToken: "deadbeef",
     location: nil,
     name: "Blob",
+    needsFreshFacebookToken: false,
     newsletters: .template,
     notifications: .template,
+    optedOutOfRecommendations: false,
+    showPublicProfile: false,
     social: nil,
     stats: .template
   )

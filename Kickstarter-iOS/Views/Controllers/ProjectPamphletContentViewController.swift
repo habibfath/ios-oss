@@ -1,6 +1,7 @@
 import KsApi
 import LiveStream
 import Library
+import PassKit
 import Prelude
 import Prelude_UIKit
 
@@ -58,8 +59,8 @@ public final class ProjectPamphletContentViewController: UITableViewController {
 
     self.viewModel.outputs.loadProjectAndLiveStreamsIntoDataSource
       .observeForUI()
-      .observeValues { [weak self] project, liveStreamEvents in
-        self?.dataSource.load(project: project, liveStreamEvents: liveStreamEvents)
+      .observeValues { [weak self] project, liveStreamEvents, visible in
+        self?.dataSource.load(project: project, liveStreamEvents: liveStreamEvents, visible: visible )
         self?.tableView.reloadData()
     }
 
@@ -127,7 +128,12 @@ public final class ProjectPamphletContentViewController: UITableViewController {
   }
 
   fileprivate func goToRewardPledge(project: Project, reward: Reward) {
-    let vc = RewardPledgeViewController.configuredWith(project: project, reward: reward)
+
+    let applePayCapable = PKPaymentAuthorizationViewController.applePayCapable(for: project)
+
+    let vc = RewardPledgeViewController.configuredWith(project: project,
+                                                       reward: reward,
+                                                       applePayCapable: applePayCapable)
     let nav = UINavigationController(rootViewController: vc)
     nav.modalPresentationStyle = UIModalPresentationStyle.formSheet
     self.present(nav, animated: true, completion: nil)
@@ -232,9 +238,9 @@ extension ProjectPamphletContentViewController: ProjectPamphletMainCellDelegate 
 
   internal func projectPamphletMainCell(_ cell: ProjectPamphletMainCell,
                                         addChildController child: UIViewController) {
-    self.addChildViewController(child)
+    self.addChild(child)
     child.beginAppearanceTransition(true, animated: false)
-    child.didMove(toParentViewController: self)
+    child.didMove(toParent: self)
     child.endAppearanceTransition()
   }
 

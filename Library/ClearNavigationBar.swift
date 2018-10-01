@@ -23,10 +23,10 @@ public class ClearNavigationBar: UINavigationBar {
 
     _ = self
       |> UINavigationBar.lens.titleTextAttributes .~ [
-        NSForegroundColorAttributeName: UIColor.white,
-        NSFontAttributeName: UIFont.ksr_callout()
+        NSAttributedString.Key.foregroundColor: UIColor.white,
+        NSAttributedString.Key.font: UIFont.ksr_callout()
       ]
-      |> UINavigationBar.lens.translucent .~ true
+      |> UINavigationBar.lens.isTranslucent .~ true
       |> UINavigationBar.lens.barTintColor .~ .white
       |> UINavigationBar.lens.shadowImage .~ UIImage()
 
@@ -40,7 +40,7 @@ public class ClearNavigationBar: UINavigationBar {
     self.backgroundGradientView.frame = self.bounds
 
     if self.subviews.index(of: self.backgroundGradientView) != 0 {
-      self.sendSubview(toBack: self.backgroundGradientView)
+      self.sendSubviewToBack(self.backgroundGradientView)
     }
   }
 

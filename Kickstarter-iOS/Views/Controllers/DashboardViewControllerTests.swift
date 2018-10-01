@@ -7,7 +7,6 @@ internal final class DashboardViewControllerTests: TestCase {
 
   override func setUp() {
     super.setUp()
-
     let project = cosmicSurgery
       |> Project.lens.dates.launchedAt .~ (self.dateType.init().timeIntervalSince1970 - 60 * 60 * 24 * 14)
       |> Project.lens.dates.deadline .~ (self.dateType.init().timeIntervalSince1970 + 60 * 60 * 24 * 14)
@@ -19,6 +18,7 @@ internal final class DashboardViewControllerTests: TestCase {
         fetchProjectStatsResponse: .template
           |> ProjectStatsEnvelope.lens.cumulativeStats .~ cumulativeStats
           |> ProjectStatsEnvelope.lens.referralDistribution .~ referrerStats
+          |> ProjectStatsEnvelope.lens.referralAggregateStats .~ referralAggregateStats
           |> ProjectStatsEnvelope.lens.rewardDistribution .~ rewardStats
           |> ProjectStatsEnvelope.lens.videoStats .~ videoStats
           |> ProjectStatsEnvelope.lens.fundingDistribution .~ fundingStats
@@ -38,7 +38,8 @@ internal final class DashboardViewControllerTests: TestCase {
 
   func testView() {
 
-    combos(Language.allLanguages, [Device.phone4_7inch, Device.pad]).forEach { language, device in
+    combos(Language.allLanguages, [Device.phone4_7inch, Device.phone5_8inch, Device.pad]).forEach {
+      language, device in
       withEnvironment(language: language) {
         let controller = DashboardViewController.instantiate()
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
@@ -47,7 +48,7 @@ internal final class DashboardViewControllerTests: TestCase {
 
         self.scheduler.run()
 
-        FBSnapshotVerifyView(parent.view, identifier: "lang_\(language)_device_\(device)")
+        FBSnapshotVerifyView(parent.view, identifier: "lang_\(language)_device_\(device)", tolerance: 0.004)
       }
     }
   }
@@ -57,7 +58,7 @@ private let rewards = (1...6).map {
   .template
     |> Reward.lens.backersCount .~ ($0 * 5)
     |> Reward.lens.id .~ $0
-    |> Reward.lens.minimum .~ ($0 * 4)
+    |> Reward.lens.minimum .~ Double($0 * 4)
 }
 
 private let externalReferrerStats = .template
@@ -90,7 +91,7 @@ private let rewardStats = (1...6).map {
   .template
     |> ProjectStatsEnvelope.RewardStats.lens.backersCount .~ ($0 * 5)
     |> ProjectStatsEnvelope.RewardStats.lens.id .~ $0
-    |> ProjectStatsEnvelope.RewardStats.lens.minimum .~ ($0 * 4)
+    |> ProjectStatsEnvelope.RewardStats.lens.minimum .~ Double($0 * 4)
     |> ProjectStatsEnvelope.RewardStats.lens.pledged .~ ($0 * $0 * 4 * 5)
 }
 
@@ -99,6 +100,11 @@ private let videoStats = .template
   |> ProjectStatsEnvelope.VideoStats.lens.externalStarts .~ 212
   |> ProjectStatsEnvelope.VideoStats.lens.internalCompletions .~ 751
   |> ProjectStatsEnvelope.VideoStats.lens.internalStarts .~ 1000
+
+private let referralAggregateStats = .template
+  |> ProjectStatsEnvelope.ReferralAggregateStats.lens.external .~ 455.00
+  |> ProjectStatsEnvelope.ReferralAggregateStats.lens.kickstarter .~ 728.00
+  |> ProjectStatsEnvelope.ReferralAggregateStats.lens.custom .~ 637.00
 
 private let cumulativeStats = .template
   |> ProjectStatsEnvelope.CumulativeStats.lens.pledged .~ rewardStats.reduce(0) { $0 + $1.pledged }

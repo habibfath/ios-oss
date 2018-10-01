@@ -7,6 +7,8 @@ import UIKit
 internal final class ActivitiesViewController: UITableViewController {
   fileprivate let viewModel: ActivitiesViewModelType = ActivitiesViewModel()
   fileprivate let dataSource = ActivitiesDataSource()
+  private var sessionEndedObserver: Any?
+  private var sessionStartedObserver: Any?
 
   fileprivate var emptyStatesController: EmptyStatesViewController?
 
@@ -17,15 +19,20 @@ internal final class ActivitiesViewController: UITableViewController {
   internal required init?(coder aDecoder: NSCoder) {
     super.init(coder: aDecoder)
 
-    NotificationCenter.default
-      .addObserver(forName: Notification.Name.ksr_sessionStarted, object: nil, queue: nil) { [weak self] _ in
+    self.sessionStartedObserver = NotificationCenter.default
+      .addObserver(forName: .ksr_sessionStarted, object: nil, queue: nil) { [weak self] _ in
         self?.viewModel.inputs.userSessionStarted()
     }
 
-    NotificationCenter.default
-      .addObserver(forName: Notification.Name.ksr_sessionEnded, object: nil, queue: nil) { [weak self] _ in
+    self.sessionEndedObserver = NotificationCenter.default
+      .addObserver(forName: .ksr_sessionEnded, object: nil, queue: nil) { [weak self] _ in
         self?.viewModel.inputs.userSessionEnded()
     }
+  }
+
+  deinit {
+    self.sessionEndedObserver.doIfSome(NotificationCenter.default.removeObserver)
+    self.sessionStartedObserver.doIfSome(NotificationCenter.default.removeObserver)
   }
 
   internal override func viewDidLayoutSubviews() {
@@ -44,9 +51,9 @@ internal final class ActivitiesViewController: UITableViewController {
     let emptyVC = EmptyStatesViewController.configuredWith(emptyState: .activity)
     self.emptyStatesController = emptyVC
     emptyVC.delegate = self
-    self.addChildViewController(emptyVC)
+    self.addChild(emptyVC)
     self.view.addSubview(emptyVC.view)
-    emptyVC.didMove(toParentViewController: self)
+    emptyVC.didMove(toParent: self)
 
     self.viewModel.inputs.viewDidLoad()
   }
@@ -97,7 +104,7 @@ internal final class ActivitiesViewController: UITableViewController {
         self?.tableView.bounces = false
         if let emptyVC = self?.emptyStatesController {
           self?.emptyStatesController?.view.isHidden = false
-          self?.view.bringSubview(toFront: emptyVC.view)
+          self?.view.bringSubviewToFront(emptyVC.view)
         }
     }
 

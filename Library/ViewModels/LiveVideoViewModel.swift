@@ -12,7 +12,7 @@ public protocol LiveVideoViewModelInputs {
   func didEnterBackground()
 
   /// Call when the HLS player's state changes.
-  func hlsPlayerStateChanged(state: AVPlayerItemStatus)
+  func hlsPlayerStateChanged(state: AVPlayerItem.Status)
 
   /// Call when the OpenTok session connects.
   func sessionDidConnect()
@@ -158,17 +158,17 @@ public final class LiveVideoViewModel: LiveVideoViewModelType, LiveVideoViewMode
     self.liveStreamTypeProperty.value = liveStreamType
   }
 
-  private let didEnterBackgroundProperty = MutableProperty()
+  private let didEnterBackgroundProperty = MutableProperty(())
   public func didEnterBackground() {
     self.didEnterBackgroundProperty.value = ()
   }
 
-  private let hlsPlayerStateChangedProperty = MutableProperty<AVPlayerItemStatus?>(nil)
-  public func hlsPlayerStateChanged(state: AVPlayerItemStatus) {
+  private let hlsPlayerStateChangedProperty = MutableProperty<AVPlayerItem.Status?>(nil)
+  public func hlsPlayerStateChanged(state: AVPlayerItem.Status) {
     self.hlsPlayerStateChangedProperty.value = state
   }
 
-  private let sessionDidConnectProperty = MutableProperty()
+  private let sessionDidConnectProperty = MutableProperty(())
   public func sessionDidConnect() {
     self.sessionDidConnectProperty.value = ()
   }
@@ -198,22 +198,22 @@ public final class LiveVideoViewModel: LiveVideoViewModelType, LiveVideoViewMode
     self.subscriberVideoEnabledProperty.value = reason
   }
 
-  private let viewDidDisappearProperty = MutableProperty()
+  private let viewDidDisappearProperty = MutableProperty(())
   public func viewDidDisappear() {
     self.viewDidDisappearProperty.value = ()
   }
 
-  private let viewDidLoadProperty = MutableProperty()
+  private let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
   }
 
-  private let viewWillAppearProperty = MutableProperty()
+  private let viewWillAppearProperty = MutableProperty(())
   public func viewWillAppear() {
     self.viewWillAppearProperty.value = ()
   }
 
-  private let willEnterForegroundProperty = MutableProperty()
+  private let willEnterForegroundProperty = MutableProperty(())
   public func willEnterForeground() {
     self.willEnterForegroundProperty.value = ()
   }
@@ -231,7 +231,7 @@ public final class LiveVideoViewModel: LiveVideoViewModelType, LiveVideoViewMode
   public var outputs: LiveVideoViewModelOutputs { return self }
 }
 
-private func playbackState(fromHlsPlayState state: AVPlayerItemStatus) -> LiveVideoPlaybackState {
+private func playbackState(fromHlsPlayState state: AVPlayerItem.Status) -> LiveVideoPlaybackState {
   switch state {
   case .failed: return .error(error: .failedToConnect)
   case .unknown: return .loading

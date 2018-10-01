@@ -2,9 +2,10 @@ import Foundation
 
 extension Backing {
   internal static let template = Backing(
-    amount: 10,
+    amount: 10.00,
     backer: .template,
     backerId: 1,
+    backerCompleted: true,
     id: 1,
     locationId: 1,
     pledgedAt: Date(timeIntervalSince1970: 1475361315).timeIntervalSince1970,

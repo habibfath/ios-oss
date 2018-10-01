@@ -10,8 +10,11 @@ public struct User {
   public let liveAuthToken: String?
   public let location: Location?
   public let name: String
+  public let needsFreshFacebookToken: Bool?
   public let newsletters: NewsletterSubscriptions
   public let notifications: Notifications
+  public let optedOutOfRecommendations: Bool?
+  public let showPublicProfile: Bool?
   public let social: Bool?
   public let stats: Stats
 
@@ -28,6 +31,23 @@ public struct User {
     public let invent: Bool?
     public let promo: Bool?
     public let weekly: Bool?
+    public let films: Bool?
+    public let publishing: Bool?
+    public let alumni: Bool?
+
+    public static func all(on: Bool) -> NewsletterSubscriptions {
+      return NewsletterSubscriptions(
+        arts: on,
+        games: on,
+        happening: on,
+        invent: on,
+        promo: on,
+        weekly: on,
+        films: on,
+        publishing: on,
+        alumni: on
+      )
+    }
   }
 
   public struct Notifications {
@@ -35,10 +55,12 @@ public struct User {
     public let comments: Bool?
     public let follower: Bool?
     public let friendActivity: Bool?
+    public let messages: Bool?
     public let mobileBackings: Bool?
     public let mobileComments: Bool?
     public let mobileFollower: Bool?
     public let mobileFriendActivity: Bool?
+    public let mobileMessages: Bool?
     public let mobilePostLikes: Bool?
     public let mobileUpdates: Bool?
     public let postLikes: Bool?
@@ -74,8 +96,7 @@ extension User: CustomDebugStringConvertible {
 
 extension User: Argo.Decodable {
   public static func decode(_ json: JSON) -> Decoded<User> {
-    let create = curry(User.init)
-    let tmp1 = pure(create)
+    let tmp1 = pure(curry(User.init))
       <*> json <| "avatar"
       <*> json <|? "facebook_connected"
       <*> json <| "id"
@@ -85,9 +106,12 @@ extension User: Argo.Decodable {
       <*> (json <|? "location" <|> .success(nil))
     let tmp3 = tmp2
       <*> json <| "name"
+      <*> json <|? "needs_fresh_facebook_token"
       <*> User.NewsletterSubscriptions.decode(json)
       <*> User.Notifications.decode(json)
+      <*> json <|? "opted_out_of_recommendations"
     return tmp3
+      <*> json <|? "show_public_profile"
       <*> json <|? "social"
       <*> User.Stats.decode(json)
   }
@@ -103,6 +127,9 @@ extension User: EncodableType {
     result["ksr_live_token"] = self.liveAuthToken
     result["location"] = self.location?.encode()
     result["name"] = self.name
+    result["opted_out_of_recommendations"] = self.optedOutOfRecommendations ?? false
+    result["social"] = self.social ?? false
+    result["show_public_profile"] = self.showPublicProfile ?? false
     result = result.withAllValuesFrom(self.newsletters.encode())
     result = result.withAllValuesFrom(self.notifications.encode())
     result = result.withAllValuesFrom(self.stats.encode())
@@ -135,6 +162,7 @@ extension User.Avatar: EncodableType {
 
 extension User.NewsletterSubscriptions: Argo.Decodable {
   public static func decode(_ json: JSON) -> Decoded<User.NewsletterSubscriptions> {
+
     return curry(User.NewsletterSubscriptions.init)
       <^> json <|? "arts_culture_newsletter"
       <*> json <|? "games_newsletter"
@@ -142,6 +170,9 @@ extension User.NewsletterSubscriptions: Argo.Decodable {
       <*> json <|? "invent_newsletter"
       <*> json <|? "promo_newsletter"
       <*> json <|? "weekly_newsletter"
+      <*> json <|? "film_newsletter"
+      <*> json <|? "publishing_newsletter"
+      <*> json <|? "alumni_newsletter"
   }
 }
 
@@ -154,6 +185,9 @@ extension User.NewsletterSubscriptions: EncodableType {
     result["invent_newsletter"] = self.invent
     result["promo_newsletter"] = self.promo
     result["weekly_newsletter"] = self.weekly
+    result["film_newsletter"] = self.films
+    result["publishing_newsletter"] = self.publishing
+    result["alumni_newsletter"] = self.alumni
     return result
   }
 }
@@ -165,22 +199,26 @@ public func == (lhs: User.NewsletterSubscriptions, rhs: User.NewsletterSubscript
     lhs.happening == rhs.happening &&
     lhs.invent == rhs.invent &&
     lhs.promo == rhs.promo &&
-    lhs.weekly == rhs.weekly
+    lhs.weekly == rhs.weekly &&
+    lhs.films == rhs.films &&
+    lhs.publishing == rhs.publishing &&
+    lhs.alumni == rhs.alumni
 }
 
 extension User.Notifications: Argo.Decodable {
   public static func decode(_ json: JSON) -> Decoded<User.Notifications> {
-    let create = curry(User.Notifications.init)
-    let tmp1 = create
+    let tmp1 = curry(User.Notifications.init)
       <^> json <|? "notify_of_backings"
       <*> json <|? "notify_of_comments"
       <*> json <|? "notify_of_follower"
       <*> json <|? "notify_of_friend_activity"
+      <*> json <|? "notify_of_messages"
     let tmp2 = tmp1
       <*> json <|? "notify_mobile_of_backings"
       <*> json <|? "notify_mobile_of_comments"
       <*> json <|? "notify_mobile_of_follower"
       <*> json <|? "notify_mobile_of_friend_activity"
+      <*> json <|? "notify_mobile_of_messages"
     return tmp2
       <*> json <|? "notify_mobile_of_post_likes"
       <*> json <|? "notify_mobile_of_updates"
@@ -198,6 +236,7 @@ extension User.Notifications: EncodableType {
     result["notify_of_comments"] = self.comments
     result["notify_of_follower"] = self.follower
     result["notify_of_friend_activity"] = self.friendActivity
+    result["notify_of_messages"] = self.messages
     result["notify_of_post_likes"] = self.postLikes
     result["notify_of_creator_edu"] = self.creatorTips
     result["notify_of_updates"] = self.updates
@@ -206,6 +245,7 @@ extension User.Notifications: EncodableType {
     result["notify_mobile_of_comments"] = self.mobileComments
     result["notify_mobile_of_follower"] = self.mobileFollower
     result["notify_mobile_of_friend_activity"] = self.mobileFriendActivity
+    result["notify_mobile_of_messages"] = self.mobileMessages
     result["notify_mobile_of_post_likes"] = self.mobilePostLikes
     result["notify_mobile_of_updates"] = self.mobileUpdates
     return result
@@ -218,10 +258,12 @@ public func == (lhs: User.Notifications, rhs: User.Notifications) -> Bool {
     lhs.comments == rhs.comments &&
     lhs.follower == rhs.follower &&
     lhs.friendActivity == rhs.friendActivity &&
+    lhs.messages == rhs.messages &&
     lhs.mobileBackings == rhs.mobileBackings &&
     lhs.mobileComments == rhs.mobileComments &&
     lhs.mobileFollower == rhs.mobileFollower &&
     lhs.mobileFriendActivity == rhs.mobileFriendActivity &&
+    lhs.mobileMessages == rhs.mobileMessages &&
     lhs.mobilePostLikes == rhs.mobilePostLikes &&
     lhs.mobileUpdates == rhs.mobileUpdates &&
     lhs.postLikes == rhs.postLikes &&
@@ -232,8 +274,7 @@ public func == (lhs: User.Notifications, rhs: User.Notifications) -> Bool {
 
 extension User.Stats: Argo.Decodable {
   public static func decode(_ json: JSON) -> Decoded<User.Stats> {
-    let create = curry(User.Stats.init)
-    return create
+    return curry(User.Stats.init)
       <^> json <|? "backed_projects_count"
       <*> json <|? "created_projects_count"
       <*> json <|? "member_projects_count"

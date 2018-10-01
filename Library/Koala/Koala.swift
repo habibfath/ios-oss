@@ -418,7 +418,8 @@ public final class Koala {
    - parameter page: The number of pages that have been loaded.
    */
   public func trackDiscovery(params: DiscoveryParams, page: Int) {
-    let props = properties(params: params).withAllValuesFrom(["page": page])
+    var props = properties(params: params).withAllValuesFrom(["page": page])
+    props["current_variants"] = AppEnvironment.current.config?.abExperimentsArray
 
     self.track(event: "Loaded Discovery Results", properties: props)
 
@@ -874,7 +875,7 @@ public final class Koala {
    - parameter shareContext:      The context in which the sharing is happening.
    - parameter shareActivityType: The type of share that was shown.
    */
-  public func trackShowedShare(shareContext: ShareContext, shareActivityType: UIActivityType?) {
+  public func trackShowedShare(shareContext: ShareContext, shareActivityType: UIActivity.ActivityType?) {
     let props = properties(shareContext: shareContext,
                            loggedInUser: self.loggedInUser,
                            shareActivityType: shareActivityType)
@@ -896,7 +897,7 @@ public final class Koala {
    - parameter shareContext:      The context in which the sharing is happening.
    - parameter shareActivityType: The type of share that was shown.
    */
-  public func trackCanceledShare(shareContext: ShareContext, shareActivityType: UIActivityType?) {
+  public func trackCanceledShare(shareContext: ShareContext, shareActivityType: UIActivity.ActivityType?) {
     let props = properties(shareContext: shareContext,
                            loggedInUser: self.loggedInUser,
                            shareActivityType: shareActivityType)
@@ -917,7 +918,7 @@ public final class Koala {
    - parameter shareContext:      The context in which the sharing is happening.
    - parameter shareActivityType: The type of share that was shown.
    */
-  public func trackShared(shareContext: ShareContext, shareActivityType: UIActivityType?) {
+  public func trackShared(shareContext: ShareContext, shareActivityType: UIActivity.ActivityType?) {
     let props = properties(shareContext: shareContext,
                            loggedInUser: self.loggedInUser,
                            shareActivityType: shareActivityType)
@@ -1049,8 +1050,9 @@ public final class Koala {
 
   // MARK: Messages
 
-  public func trackMessageThreadsView(mailbox: Mailbox, project: Project?) {
-    let props = project.flatMap { properties(project: $0, loggedInUser: self.loggedInUser) } ?? [:]
+  public func trackMessageThreadsView(mailbox: Mailbox, project: Project?, refTag: RefTag) {
+    let props = (project.flatMap { properties(project: $0, loggedInUser: self.loggedInUser) } ?? [:])
+      .withAllValuesFrom(["ref_tag": refTag.stringTag])
 
     switch mailbox {
     case .inbox:
@@ -1171,6 +1173,7 @@ public final class Koala {
     props["referrer_credit"] = cookieRefTag?.stringTag
     props["live_stream_type"] = prioritizedLiveStreamState(
       fromLiveStreamEvents: liveStreamEvents)?.trackingString
+    props["current_variants"] = AppEnvironment.current.config?.abExperimentsArray
 
     // Deprecated event
     self.track(event: "Project Page", properties: props.withAllValuesFrom(deprecatedProps))
@@ -1239,6 +1242,16 @@ public final class Koala {
     self.track(event: "App Store Rating Open", properties: deprecatedProps)
 
     self.track(event: "Opened App Store Listing")
+  }
+
+  public func trackRecommendationsOptIn() {
+    // deprecated
+    self.track(event: "Toggled recommendations", properties: deprecatedProps)
+  }
+
+  public func trackFollowingOptIn() {
+    // deprecated
+    self.track(event: "Toggled following", properties: deprecatedProps)
   }
 
   public func trackCancelLogoutModal() {
@@ -1797,6 +1810,7 @@ public final class Koala {
     props["manufacturer"] = "Apple"
     props["app_version"] = self.bundle.infoDictionary?["CFBundleVersion"]
     props["app_release"] = self.bundle.infoDictionary?["CFBundleShortVersionString"]
+    props["current_variants"] = AppEnvironment.current.config?.abExperimentsArray
     props["model"] = Koala.deviceModel
     props["distinct_id"] = self.distinctId
     props["device_fingerprint"] = self.distinctId
@@ -1933,7 +1947,7 @@ private func properties(comment: Comment, prefix: String = "comment_") -> [Strin
 
   var properties: [String: Any] = [:]
 
-  properties["body_length"] = comment.body.characters.count
+  properties["body_length"] = comment.body.count
 
   return properties.prefixedKeys(prefix)
 }
@@ -1978,7 +1992,7 @@ private func properties(params: DiscoveryParams, prefix: String = "discover_") -
   return result.prefixedKeys("discover_")
 }
 
-private func properties(category: KsApi.RootCategoriesEnvelope.Category) -> [String: Any] {
+private func properties(category: KsApi.Category) -> [String: Any] {
 
   var result: [String: Any] = [:]
 
@@ -1997,7 +2011,7 @@ private func properties(category: KsApi.RootCategoriesEnvelope.Category) -> [Str
 
 private func properties(shareContext: ShareContext,
                         loggedInUser: User?,
-                        shareActivityType: UIActivityType? = nil) -> [String: Any] {
+                        shareActivityType: UIActivity.ActivityType? = nil) -> [String: Any] {
 
   var result: [String: Any] = [:]
 
@@ -2058,7 +2072,7 @@ private func properties(liveStreamEvent: LiveStreamEvent,
   return properties.prefixedKeys(prefix)
 }
 
-private func shareTypeProperty(_ shareType: UIActivityType?) -> String? {
+private func shareTypeProperty(_ shareType: UIActivity.ActivityType?) -> String? {
   #if os(iOS)
     guard let shareType = shareType else { return nil }
 
@@ -2072,7 +2086,7 @@ private func shareTypeProperty(_ shareType: UIActivityType?) -> String? {
       return "copy link"
     } else if shareType == .postToTwitter {
       return "twitter"
-    } else if shareType == UIActivityType("com.apple.mobilenotes.SharingExtension") {
+    } else if shareType == UIActivity.ActivityType("com.apple.mobilenotes.SharingExtension") {
       return "notes"
     } else if shareType == SafariActivityType {
       return "safari"

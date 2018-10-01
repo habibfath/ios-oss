@@ -98,7 +98,7 @@ public struct Environment {
     debounceInterval: DispatchTimeInterval = .milliseconds(300),
     device: UIDeviceType = UIDevice.current,
     facebookAppDelegate: FacebookAppDelegateProtocol = FBSDKApplicationDelegate.sharedInstance(),
-    isVoiceOverRunning: @escaping () -> Bool = UIAccessibilityIsVoiceOverRunning,
+    isVoiceOverRunning: @escaping () -> Bool = {UIAccessibility.isVoiceOverRunning },
     koala: Koala = Koala(client: KoalaTrackingClient(endpoint: .production)),
     language: Language = Language(languageStrings: Locale.preferredLanguages) ?? Language.en,
     launchedCountries: LaunchedCountries = .init(),
@@ -107,7 +107,7 @@ public struct Environment {
     mainBundle: NSBundleType = Bundle.main,
     reachability: SignalProducer<Reachability, NoError> = Reachability.signalProducer,
     scheduler: DateScheduler = QueueScheduler.main,
-    ubiquitousStore: KeyValueStoreType = NSUbiquitousKeyValueStore.default(),
+    ubiquitousStore: KeyValueStoreType = NSUbiquitousKeyValueStore.default,
     userDefaults: KeyValueStoreType = UserDefaults.standard) {
 
     self.apiService = apiService

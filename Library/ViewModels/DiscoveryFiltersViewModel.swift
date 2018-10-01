@@ -177,11 +177,11 @@ DiscoveryFiltersViewModelInputs, DiscoveryFiltersViewModelOutputs {
   public func tapped(selectableRow: SelectableRow) {
     self.tappedSelectableRowProperty.value = selectableRow
   }
-  fileprivate let viewDidLoadProperty = MutableProperty()
+  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
   }
-  fileprivate let viewDidAppearProperty = MutableProperty()
+  fileprivate let viewDidAppearProperty = MutableProperty(())
   public func viewDidAppear() {
     self.viewDidAppearProperty.value = ()
   }
@@ -215,7 +215,7 @@ DiscoveryFiltersViewModelInputs, DiscoveryFiltersViewModelOutputs {
  */
 
 private func expandableRows(selectedRow: SelectableRow,
-                            categories: [RootCategoriesEnvelope.Category]) -> [ExpandableRow] {
+                            categories: [KsApi.Category]) -> [ExpandableRow] {
 
   let expandableRows = categories.filter { $0.isRoot }
     .sorted { lhs, _ in lhs.isRoot }
@@ -224,7 +224,7 @@ private func expandableRows(selectedRow: SelectableRow,
                            params: .defaults |> DiscoveryParams.lens.category .~ rootCategory,
                            selectableRows: ([rootCategory] + (rootCategory.subcategories?.nodes ?? []))
                             .sorted()
-                            .flatMap { node in
+                            .compactMap { node in
                               return SelectableRow(isSelected: node == selectedRow.params.category,
                                                    params: .defaults
                                                     |> DiscoveryParams.lens.category .~ node)
@@ -283,20 +283,25 @@ private func topFilters(forUser user: User?) -> [DiscoveryParams] {
     filters.append(.defaults |> DiscoveryParams.lens.hasLiveStreams .~ true)
   }
 
-  if user != nil {
+  guard user != nil else {
+    return filters
+  }
+
     filters.append(.defaults |> DiscoveryParams.lens.starred .~ true)
-    filters.append(
-      .defaults
+
+    if user?.optedOutOfRecommendations != true {
+      filters.append(.defaults
         |> DiscoveryParams.lens.recommended .~ true
         |> DiscoveryParams.lens.backed .~ false
-    )
+      )
+    }
+
     filters.append(.defaults |> DiscoveryParams.lens.social .~ true)
-  }
 
   return filters
 }
 
-private func favorites(selectedRow: SelectableRow, categories: [RootCategoriesEnvelope.Category])
+private func favorites(selectedRow: SelectableRow, categories: [KsApi.Category])
   -> [SelectableRow]? {
 
     let subcategories = categories
@@ -304,7 +309,7 @@ private func favorites(selectedRow: SelectableRow, categories: [RootCategoriesEn
       .flatMap { category in ([category] + (category.subcategories?.nodes ?? [])) }
 
     let faves: [SelectableRow] = subcategories
-      .flatMap { subcategory in
+      .compactMap { subcategory in
         guard let id = subcategory.intID else {
           return nil
         }
@@ -321,12 +326,12 @@ private func favorites(selectedRow: SelectableRow, categories: [RootCategoriesEn
     return faves.isEmpty ? nil : faves
 }
 
-private func cachedCategories() -> [RootCategoriesEnvelope.Category]? {
+private func cachedCategories() -> [KsApi.Category]? {
   return AppEnvironment.current
-    .cache[KSCache.ksr_discoveryFiltersCategories] as? [RootCategoriesEnvelope.Category]
+    .cache[KSCache.ksr_discoveryFiltersCategories] as? [KsApi.Category]
 }
 
-private func cache(categories: [RootCategoriesEnvelope.Category]) {
+private func cache(categories: [KsApi.Category]) {
   AppEnvironment.current.cache[KSCache.ksr_discoveryFiltersCategories] = categories
 }
 

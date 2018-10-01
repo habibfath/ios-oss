@@ -237,7 +237,8 @@ RewardPledgeViewModelOutputs {
       .skipRepeats(==)
 
     let shippingRulesEvent = projectAndReward
-      .switchMap { (project, reward) -> SignalProducer<Event<[ShippingRule], ErrorEnvelope>, NoError> in
+      .switchMap { (project, reward)
+        -> SignalProducer<Signal<[ShippingRule], ErrorEnvelope>.Event, NoError> in
         guard reward != Reward.noReward else {
           return SignalProducer(value: .value([]))
         }
@@ -385,7 +386,7 @@ RewardPledgeViewModelOutputs {
       .map { currencySymbol(forCountry: $0.country).trimmed() }
 
     let initialPledgeTextFieldText = projectAndReward
-      .map { project, reward -> Int in
+      .map { project, reward -> Double in
         guard let backing = project.personalization.backing,
           userIsBacking(reward: reward, inProject: project) else {
 
@@ -394,12 +395,12 @@ RewardPledgeViewModelOutputs {
               : reward.minimum
         }
 
-        return backing.amount - (backing.shippingAmount ?? 0)
+        return backing.amount - Double(backing.shippingAmount ?? 0)
     }
 
     let userEnteredPledgeAmount = Signal.merge(
       initialPledgeTextFieldText,
-      self.pledgeTextChangedProperty.signal.map { Int($0) ?? 0 }
+      self.pledgeTextChangedProperty.signal.map { Double($0) ?? 0.00 }
       )
 
     let pledgeTextFieldWhenReturnWithBadAmount = Signal.combineLatest(
@@ -407,7 +408,8 @@ RewardPledgeViewModelOutputs {
       projectAndReward.map(minAndMaxPledgeAmount(forProject:reward:))
       )
       .takeWhen(self.pledgeTextFieldDidEndEditingProperty.signal)
-      .filter { pledgeAmount, minAndMax in pledgeAmount < minAndMax.0 || pledgeAmount > minAndMax.1 }
+      .filter { pledgeAmount, minAndMax in pledgeAmount < minAndMax.0
+        || pledgeAmount > minAndMax.1 }
       .map { _, minAndMax in minAndMax.0 }
 
     let pledgeAmount = Signal.merge(
@@ -419,7 +421,7 @@ RewardPledgeViewModelOutputs {
       initialPledgeTextFieldText,
       pledgeTextFieldWhenReturnWithBadAmount
       )
-      .map { String($0) }
+      .map { String(format: "%.2f", $0) }
 
     let paymentMethodTapped = Signal.merge(
       self.continueToPaymentsButtonTappedProperty.signal,
@@ -765,17 +767,17 @@ RewardPledgeViewModelOutputs {
   }
   // swiftlint:enable function_body_length
 
-  fileprivate let applePayButtonTappedProperty = MutableProperty()
+  fileprivate let applePayButtonTappedProperty = MutableProperty(())
   public func applePayButtonTapped() {
     self.applePayButtonTappedProperty.value = ()
   }
 
-  fileprivate let cancelPledgeButtonTappedProperty = MutableProperty()
+  fileprivate let cancelPledgeButtonTappedProperty = MutableProperty(())
   public func cancelPledgeButtonTapped() {
     self.cancelPledgeButtonTappedProperty.value = ()
   }
 
-  fileprivate let changePaymentMethodButtonTappedProperty = MutableProperty()
+  fileprivate let changePaymentMethodButtonTappedProperty = MutableProperty(())
   public func changePaymentMethodButtonTapped() {
     self.changePaymentMethodButtonTappedProperty.value = ()
   }
@@ -785,12 +787,12 @@ RewardPledgeViewModelOutputs {
     self.changedShippingRuleProperty.value = shippingRule
   }
 
-  fileprivate let closeButtonTappedProperty = MutableProperty()
+  fileprivate let closeButtonTappedProperty = MutableProperty(())
   public func closeButtonTapped() {
     self.closeButtonTappedProperty.value = ()
   }
 
-  fileprivate let continueToPaymentsButtonTappedProperty = MutableProperty()
+  fileprivate let continueToPaymentsButtonTappedProperty = MutableProperty(())
   public func continueToPaymentsButtonTapped() {
     self.continueToPaymentsButtonTappedProperty.value = ()
   }
@@ -805,12 +807,12 @@ RewardPledgeViewModelOutputs {
     self.didAuthorizePaymentProperty.value = payment
   }
 
-  fileprivate let differentPaymentMethodButtonTappedProperty = MutableProperty()
+  fileprivate let differentPaymentMethodButtonTappedProperty = MutableProperty(())
   public func differentPaymentMethodButtonTapped() {
     self.differentPaymentMethodButtonTappedProperty.value = ()
   }
 
-  fileprivate let disclaimerButtonTappedProperty = MutableProperty()
+  fileprivate let disclaimerButtonTappedProperty = MutableProperty(())
   public func disclaimerButtonTapped() {
     self.disclaimerButtonTappedProperty.value = ()
   }
@@ -820,17 +822,17 @@ RewardPledgeViewModelOutputs {
     self.errorAlertTappedShouldDismissProperty.value = shouldDismiss
   }
 
-  fileprivate let expandDescriptionTappedProperty = MutableProperty()
+  fileprivate let expandDescriptionTappedProperty = MutableProperty(())
   public func expandDescriptionTapped() {
     self.expandDescriptionTappedProperty.value = ()
   }
 
-  fileprivate let paymentAuthorizationFinishedProperty = MutableProperty()
+  fileprivate let paymentAuthorizationFinishedProperty = MutableProperty(())
   public func paymentAuthorizationDidFinish() {
     self.paymentAuthorizationFinishedProperty.value = ()
   }
 
-  fileprivate let paymentAuthorizationWillAuthorizeProperty = MutableProperty()
+  fileprivate let paymentAuthorizationWillAuthorizeProperty = MutableProperty(())
   public func paymentAuthorizationWillAuthorizePayment() {
     self.paymentAuthorizationWillAuthorizeProperty.value = ()
   }
@@ -840,7 +842,7 @@ RewardPledgeViewModelOutputs {
     self.pledgeTextChangedProperty.value = text
   }
 
-  fileprivate let pledgeTextFieldDidEndEditingProperty = MutableProperty()
+  fileprivate let pledgeTextFieldDidEndEditingProperty = MutableProperty(())
   public func pledgeTextFieldDidEndEditing() {
     self.pledgeTextFieldDidEndEditingProperty.value = ()
   }
@@ -850,12 +852,12 @@ RewardPledgeViewModelOutputs {
     self.projectAndRewardAndApplePayCapableProperty.value = (project, reward, applePayCapable)
   }
 
-  fileprivate let shippingButtonTappedProperty = MutableProperty()
+  fileprivate let shippingButtonTappedProperty = MutableProperty(())
   public func shippingButtonTapped() {
     self.shippingButtonTappedProperty.value = ()
   }
 
-  fileprivate let stripeTokenAndErrorProperty = MutableProperty(String?.none, Error?.none)
+  fileprivate let stripeTokenAndErrorProperty = MutableProperty((String?.none, Error?.none))
   fileprivate let paymentAuthorizationStatusProperty = MutableProperty(PKPaymentAuthorizationStatus.failure)
   public func stripeCreatedToken(stripeToken: String?, error: Error?)
     -> PKPaymentAuthorizationStatus {
@@ -864,17 +866,17 @@ RewardPledgeViewModelOutputs {
       return self.paymentAuthorizationStatusProperty.value
   }
 
-  fileprivate let updatePledgeButtonTappedProperty = MutableProperty()
+  fileprivate let updatePledgeButtonTappedProperty = MutableProperty(())
   public func updatePledgeButtonTapped() {
     self.updatePledgeButtonTappedProperty.value = ()
   }
 
-  fileprivate let userSessionStartedProperty = MutableProperty()
+  fileprivate let userSessionStartedProperty = MutableProperty(())
   public func userSessionStarted() {
     self.userSessionStartedProperty.value = ()
   }
 
-  fileprivate let viewDidLoadProperty = MutableProperty()
+  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
   }
@@ -941,12 +943,12 @@ RewardPledgeViewModelOutputs {
 
 private func paymentRequest(forProject project: Project,
                             reward: Reward,
-                            pledgeAmount: Int,
+                            pledgeAmount: Double,
                             selectedShippingRule: ShippingRule?,
                             merchantIdentifier: String) -> PKPaymentRequest {
   let request = PKPaymentRequest()
   request.merchantIdentifier = merchantIdentifier
-  request.supportedNetworks = PKPaymentAuthorizationViewController.supportedNetworks
+  request.supportedNetworks = PKPaymentAuthorizationViewController.supportedNetworks(for: project)
   request.merchantCapabilities = .capability3DS
   request.countryCode = project.country.countryCode
   request.currencyCode = project.country.currencyCode
@@ -962,7 +964,7 @@ private func paymentRequest(forProject project: Project,
 
 private func paymentSummaryItems(forProject project: Project,
                                  reward: Reward,
-                                 pledgeAmount: Int,
+                                 pledgeAmount: Double,
                                  selectedShippingRule: ShippingRule?) -> [PKPaymentSummaryItem] {
 
   var paymentSummaryItems: [PKPaymentSummaryItem] = []
@@ -1024,7 +1026,7 @@ private func projectNeedsCurrencyCode(_ project: Project) -> Bool {
     && project.country.currencySymbol == "$"
 }
 
-private func backingError(forProject project: Project, amount: Int, reward: Reward?) -> PledgeError? {
+private func backingError(forProject project: Project, amount: Double, reward: Reward?) -> PledgeError? {
 
   let (min, max) = minAndMaxPledgeAmount(forProject: project, reward: reward)
 
@@ -1049,14 +1051,14 @@ private func backingError(forProject project: Project, amount: Int, reward: Rewa
 
 private func createPledge(project: Project,
                           reward: Reward?,
-                          amount: Int,
+                          amount: Double,
                           shipping: ShippingRule?) -> SignalProducer<URLRequest, PledgeError> {
 
   if let error = backingError(forProject: project, amount: amount, reward: reward) {
     return SignalProducer(error: error)
   }
 
-  let totalAmount = Double(amount) + (shipping?.cost ?? 0)
+  let totalAmount = amount + (shipping?.cost ?? 0)
 
   return AppEnvironment.current.apiService.createPledge(
     project: project,
@@ -1079,14 +1081,14 @@ private func createPledge(project: Project,
 
 private func updatePledge(project: Project,
                           reward: Reward?,
-                          amount: Int,
+                          amount: Double,
                           shipping: ShippingRule?) -> SignalProducer<URLRequest?, PledgeError> {
 
   if let error = backingError(forProject: project, amount: amount, reward: reward) {
     return SignalProducer(error: error)
   }
 
-  let totalAmount = Double(amount) + (shipping?.cost ?? 0)
+  let totalAmount = amount + (shipping?.cost ?? 0)
 
   return AppEnvironment.current.apiService.updatePledge(
     project: project,
@@ -1109,7 +1111,7 @@ private func updatePledge(project: Project,
 private func createApplePayPledge(
   project: Project,
   reward: Reward?,
-  amount: Int,
+  amount: Double,
   shipping: ShippingRule?,
   paymentData: PaymentData,
   stripeToken: String) -> SignalProducer<SubmitApplePayEnvelope, PledgeError> {
@@ -1118,7 +1120,7 @@ private func createApplePayPledge(
     return SignalProducer(error: error)
   }
 
-  let totalAmount = Double(amount) + (shipping?.cost ?? 0)
+  let totalAmount = amount + (shipping?.cost ?? 0)
 
   return AppEnvironment.current.apiService.createPledge(
     project: project,

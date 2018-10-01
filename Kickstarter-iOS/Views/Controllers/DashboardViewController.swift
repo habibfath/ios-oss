@@ -101,8 +101,9 @@ internal final class DashboardViewController: UITableViewController {
 
     self.viewModel.outputs.referrerData
       .observeForUI()
-      .observeValues { [weak self] (cumulative, project, referrers) in
-        self?.dataSource.load(cumulative: cumulative, project: project, referrers: referrers)
+      .observeValues { [weak self] (cumulative, project, aggregates, referrers) in
+        self?.dataSource.load(cumulative: cumulative, project: project,
+                              aggregate: aggregates, referrers: referrers)
         self?.tableView.reloadData()
     }
 
@@ -208,7 +209,7 @@ internal final class DashboardViewController: UITableViewController {
   }
 
   private func goToMessages(project: Project) {
-    let vc = MessageThreadsViewController.configuredWith(project: project)
+    let vc = MessageThreadsViewController.configuredWith(project: project, refTag: .dashboard)
     self.navigationController?.pushViewController(vc, animated: true)
   }
 
@@ -257,7 +258,7 @@ internal final class DashboardViewController: UITableViewController {
   }
 
   private func accessibilityFocusOnTitleView() {
-    UIAccessibilityPostNotification(UIAccessibilityScreenChangedNotification, self.titleView)
+    UIAccessibility.post(notification: UIAccessibility.Notification.screenChanged, argument: self.titleView)
   }
 
   @objc fileprivate func shareButtonTapped() {
@@ -265,7 +266,7 @@ internal final class DashboardViewController: UITableViewController {
   }
 
   private func goToMessageThread(project: Project, messageThread: MessageThread) {
-    let threadsVC = MessageThreadsViewController.configuredWith(project: project)
+    let threadsVC = MessageThreadsViewController.configuredWith(project: project, refTag: .dashboard)
     let messageThreadVC = MessagesViewController.configuredWith(messageThread: messageThread)
 
     self.navigationController?.setViewControllers([self, threadsVC, messageThreadVC], animated: true)
